@@ -1,0 +1,17 @@
+{
+  "title": "الملف الشخصي",
+  "personalInfo": "المعلومات الشخصية",
+  "employeeDetails": "بيانات الموظف",
+  "email": "البريد الإلكتروني",
+  "phone": "الهاتف",
+  "department": "القسم",
+  "designation": "المسمى الوظيفي",
+  "joinDate": "تاريخ التعيين",
+  "manager": "المدير المباشر",
+  "location": "الموقع",
+  "employeeType": "نوع التوظيف",
+  "fullTime": "دوام كامل",
+  "partTime": "دوام جزئي",
+  "logout": "تسجيل الخروج",
+  "editProfile": "تعديل الملف"
+}

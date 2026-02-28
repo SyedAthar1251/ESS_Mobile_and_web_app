@@ -1,0 +1,17 @@
+{
+  "title": "Profile",
+  "personalInfo": "Personal Information",
+  "employeeDetails": "Employee Details",
+  "email": "Email",
+  "phone": "Phone",
+  "department": "Department",
+  "designation": "Designation",
+  "joinDate": "Join Date",
+  "manager": "Manager",
+  "location": "Location",
+  "employeeType": "Employee Type",
+  "fullTime": "Full Time",
+  "partTime": "Part Time",
+  "logout": "Logout",
+  "editProfile": "Edit Profile"
+}

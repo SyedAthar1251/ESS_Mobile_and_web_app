@@ -1,0 +1,11 @@
+{
+  "welcomeBack": "Welcome Back 👋",
+  "pleaseLogin": "Please login to continue",
+  "companyUrl": "Company URL (e.g. ess.mycompany.com)",
+  "employeeId": "Employee ID",
+  "password": "Password",
+  "forgotPassword": "Forgot Password?",
+  "login": "Login",
+  "createAccount": "Don\\'t have an account?",
+  "createUser": "Create User"
+}

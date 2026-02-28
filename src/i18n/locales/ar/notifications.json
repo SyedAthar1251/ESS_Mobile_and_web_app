@@ -1,0 +1,21 @@
+{
+  "notifications": "الإشعارات",
+  "all": "الكل",
+  "unread": "غير مقروء",
+  "read": "مقروء",
+  "total": "الإجمالي",
+  "alerts": "تنبيهات",
+  "new": "جديد",
+  "noNotifications": "لا توجد إشعارات",
+  "markAllAsRead": "تحديد الكل كمقروء",
+  "leaveApproved": "تمت الموافقة على الإجازة",
+  "newTaskAssigned": "تم تعيين مهمة جديدة",
+  "salaryCredited": "تم إيداع الراتب",
+  "attendanceReminder": "تذكير بالحضور",
+  "expenseRejected": "تم رفض المصروف",
+  "leaveApplicationApproved": "تم اعتماد طلب الإجازة الخاص بك للفترة",
+  "assignedToProject": "لقد تم إسنادك إلى",
+  "salaryForMonth": "تم إيداع راتبك لشهر",
+  "rememberToCheckin": "يرجى تسجيل الحضور اليوم قبل الساعة",
+  "expenseClaimRejected": "تم رفض مطالبة المصروفات الخاصة بك لـ"
+}

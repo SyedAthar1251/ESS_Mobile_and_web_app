@@ -1,0 +1,11 @@
+{
+  "welcomeBack": "أهلاً بعودتك 👋",
+  "pleaseLogin": "الرجاء تسجيل الدخول للمتابعة",
+  "companyUrl": "رابط الشركة (مثلاً: ess.mycompany.com)",
+  "employeeId": "رقم الموظف",
+  "password": "كلمة المرور",
+  "forgotPassword": "نسيت كلمة المرور؟",
+  "login": "تسجيل الدخول",
+  "createAccount": "ليس لديك حساب؟",
+  "createUser": "إنشاء حساب"
+}
