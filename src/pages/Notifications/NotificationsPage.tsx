@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLanguage } from "../../i18n/LanguageContext";
+import { useTheme } from "../../store/ThemeContext";
 
 // Notification types
 interface Notification {
@@ -18,6 +19,7 @@ type NotificationFilter = "all" | "unread" | "read";
 
 const NotificationsPage = () => {
   const { language, t } = useLanguage();
+  const { theme } = useTheme();
   const [activeFilter, setActiveFilter] = useState<NotificationFilter>("all");
 
   const notificationFilters: { key: NotificationFilter; label: string; icon: string }[] = [
@@ -112,13 +114,13 @@ const NotificationsPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-100 to-gray-200 p-4 space-y-6">
+    <div className="p-4 space-y-6">
       {/* Header */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h1 className="text-xl font-bold text-gray-800">{t("notifications")}</h1>
           {unreadCount > 0 && (
-            <span className="bg-red-500 text-white text-xs px-2 py-1 rounded-full">
+            <span className="bg-red-500 text-black text-xs px-2 py-1 rounded-full">
               {unreadCount} {t("new")}
             </span>
           )}
@@ -149,7 +151,7 @@ const NotificationsPage = () => {
             onClick={() => setActiveFilter(filter.key)}
             className={`flex-1 py-2 px-4 rounded-xl font-medium transition-colors ${
               activeFilter === filter.key
-                ? "bg-indigo-600 text-white"
+                ? "bg-indigo-600 text-black"
                 : "bg-white text-gray-600 hover:bg-gray-50"
             }`}
           >
@@ -161,7 +163,7 @@ const NotificationsPage = () => {
       {/* Notifications List */}
       <div className="space-y-4">
         {filteredNotifications.length === 0 ? (
-          <div className="bg-white rounded-2xl p-8 text-center text-gray-500">
+          <div className={`p-8 text-center ${theme === 'neon-green' ? 'neon-card' : 'bg-white rounded-2xl'}`}>
             <span className="text-4xl">🔔</span>
             <p className="mt-2">{t("noNotifications")}</p>
           </div>
@@ -172,7 +174,7 @@ const NotificationsPage = () => {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.05 }}
-              className={`rounded-2xl p-4 border ${typeColors[notif.type].bg} ${typeColors[notif.type].border} ${
+              className={`rounded-2xl p-4 border ${theme === 'neon-green' ? 'neon-card' : ''} ${typeColors[notif.type].bg} ${typeColors[notif.type].border} ${
                 !notif.is_read ? "border-l-4" : ""
               }`}
             >

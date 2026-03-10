@@ -30,7 +30,7 @@ const getApiUrl = (companyUrl: string): string => {
 };
 
 // DUMMY MODE - Set to true to bypass login for development
-const DUMMY_MODE = true;
+const DUMMY_MODE = false;
 
 // Login function
 export const login = async (credentials: LoginCredentials): Promise<LoginResponse> => {
@@ -120,5 +120,76 @@ export const logout = async (companyUrl: string, sid: string): Promise<void> => 
     console.log("[AuthService] Logout successful");
   } catch (error) {
     console.log("[AuthService] Logout API call failed, but clearing local data anyway");
+  }
+};
+
+// Change Password function
+export interface ChangePasswordCredentials {
+  companyUrl: string;
+  currentPassword: string;
+  newPassword: string;
+  apiKey?: string;
+  apiSecret?: string;
+}
+
+export interface ChangePasswordResponse {
+  message?: string;
+  exception?: string;
+  error?: string;
+}
+
+export const changePassword = async (credentials: ChangePasswordCredentials): Promise<ChangePasswordResponse> => {
+  const { companyUrl, currentPassword, newPassword, apiKey, apiSecret } = credentials;
+  
+  console.log("[AuthService] Change password attempt");
+  
+  // DUMMY MODE - Return fake success for development
+  if (DUMMY_MODE) {
+    console.log("[AuthService] DUMMY MODE - Returning fake change password success");
+    return {
+      message: "Password changed successfully",
+    };
+  }
+  
+  const cleanUrl = companyUrl.replace(/\/$/, "");
+  const apiUrl = `${cleanUrl}/api/method/employee_self_service.mobile.ess.change_password`;
+  console.log("[AuthService] Full API URL:", apiUrl);
+  
+  try {
+    const response = await api.post<ChangePasswordResponse>(
+      apiUrl,
+      {
+        current_password: currentPassword,
+        new_password: newPassword,
+      },
+      {
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `token ${apiKey}:${apiSecret}`,
+        },
+        timeout: 30000,
+      }
+    );
+    
+    console.log("[AuthService] Change password successful:", response.data);
+    return response.data;
+  } catch (error: any) {
+    console.log("[AuthService] Change password error details:", {
+      status: error.response?.status,
+      message: error.response?.data?.exception || error.response?.data?.error || error.message,
+      fullError: error.response?.data,
+    });
+    
+    if (error.response?.data?.exception) {
+      throw new Error(error.response.data.exception);
+    } else if (error.response?.data?.error) {
+      throw new Error(error.response.data.error);
+    } else if (error.response?.status === 401) {
+      throw new Error("Invalid current password. Please check and try again.");
+    } else if (error.code === "ECONNABORTED") {
+      throw new Error("Request timed out. Please try again.");
+    } else {
+      throw new Error("Failed to change password. Please try again.");
+    }
   }
 };

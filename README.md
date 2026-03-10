@@ -1,4 +1,4 @@
-# ESS (Employee Self Service) Mobile Web App
+# AlphaX Workforce (Employee Self Service) Mobile Web App
 
 A modern, responsive mobile web application for employees to manage their HR-related tasks including attendance, leave, salary, and more.
 

@@ -1,7 +1,9 @@
 import { useState, useRef, useEffect } from "react";
 import Sidebar from "../components/Sidebar";
+import LanguageSwitcher from "../components/LanguageSwitcher";
 import { useAuth } from "../auth/useAuth";
 import { useLanguage } from "../i18n/LanguageContext";
+import { useTheme } from "../store/ThemeContext";
 import { LANGUAGES } from "../i18n/languages";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
@@ -10,8 +12,10 @@ const AuthenticatedLayout = ({ children }: { children: React.ReactNode }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSidebarMinimized, setIsSidebarMinimized] = useState(false);
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
+  const [showThemePopup, setShowThemePopup] = useState(false);
   const { user, logout } = useAuth();
   const { language, changeLanguage } = useLanguage();
+  const { theme, themeColors, setTheme } = useTheme();
   const navigate = useNavigate();
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -57,11 +61,15 @@ const AuthenticatedLayout = ({ children }: { children: React.ReactNode }) => {
   const isRTL = language === LANGUAGES.AR;
 
   return (
-    <div className="min-h-screen bg-gray-100" dir={isRTL ? "rtl" : "ltr"}>
-      {/* Top Navbar with Corporate Indigo Gradient */}
-      <header className={`fixed top-0 ${isRTL ? 'right-0' : 'left-0'} left-0 right-0 h-16 shadow-md flex items-center justify-between px-4 md:px-6 z-50`}
+    <div 
+      className="min-h-screen flex flex-col"
+      dir={isRTL ? "rtl" : "ltr"}
+      style={{ background: themeColors.gradient || themeColors.background }}
+    >
+      {/* Top Navbar with Theme Colors */}
+      <header className={`flex-shrink-0 fixed top-0 ${isRTL ? 'right-0' : 'left-0'} left-0 right-0 h-16 shadow-md flex items-center justify-between px-4 md:px-6 z-50`}
         style={{
-          background: "linear-gradient(90deg, rgb(49, 46, 129) 0%, rgb(79, 70, 229) 50%, rgb(129, 140, 248) 100%)"
+          background: themeColors.primary
         }}
       >
         
@@ -69,25 +77,31 @@ const AuthenticatedLayout = ({ children }: { children: React.ReactNode }) => {
         <div className="flex items-center gap-3">
           <button
             onClick={() => setIsSidebarOpen(true)}
-            className="text-2xl text-white"
+            className="text-2xl text-black"
           >
             ☰
           </button>
 
-          <h1 className="text-xl font-bold text-white">
+          <h1 className="text-xl font-bold text-black flex items-center gap-2">
+            <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+            </svg>
             ESS
           </h1>
         </div>
 
-        {/* Right/Left: Notification + Profile */}
+        {/* Right/Left: Language + Notification + Profile */}
         <div className="flex items-center gap-2">
+          {/* Language Switcher */}
+          <LanguageSwitcher />
+
           {/* Notification Bell */}
           <button
             onClick={handleNotification}
             className="relative p-2 rounded-lg hover:bg-white/10 transition"
           >
             <svg 
-              className="w-6 h-6 text-white" 
+              className="w-6 h-6 text-black" 
               fill="none" 
               stroke="currentColor" 
               viewBox="0 0 24 24"
@@ -104,11 +118,11 @@ const AuthenticatedLayout = ({ children }: { children: React.ReactNode }) => {
               onClick={() => setShowProfileDropdown(!showProfileDropdown)}
               className={`flex items-center gap-2 p-1 rounded-lg hover:bg-white/10 transition ${isRTL ? 'flex-row-reverse' : ''}`}
             >
-              <div className="h-10 w-10 rounded-full bg-white/20 text-white flex items-center justify-center font-semibold shadow">
+              <div className="h-10 w-10 rounded-full bg-white/20 text-black flex items-center justify-center font-semibold shadow">
                 {getInitials()}
               </div>
               <svg 
-                className={`w-4 h-4 text-white transition-transform ${showProfileDropdown ? 'rotate-180' : ''} ${isRTL ? 'rotate-180' : ''}`}
+                className={`w-4 h-4 text-black transition-transform ${showProfileDropdown ? 'rotate-180' : ''} ${isRTL ? 'rotate-180' : ''}`}
                 fill="none" 
                 stroke="currentColor" 
                 viewBox="0 0 24 24"
@@ -132,33 +146,6 @@ const AuthenticatedLayout = ({ children }: { children: React.ReactNode }) => {
                     <p className="text-sm text-gray-500">{user?.userId || "employee@company.com"}</p>
                   </div>
 
-                  {/* Language Toggle */}
-                  <div className="px-4 py-3 border-b border-gray-100">
-                    <p className="text-xs font-medium text-gray-500 mb-2 uppercase">Language</p>
-                    <div className="flex items-center justify-between bg-gray-100 rounded-lg p-1">
-                      <button
-                        onClick={() => changeLanguage(LANGUAGES.EN)}
-                        className={`flex-1 py-1.5 px-3 rounded-md text-sm font-medium transition ${
-                          language === LANGUAGES.EN
-                            ? "bg-indigo-600 text-white shadow-sm"
-                            : "text-gray-600 hover:text-gray-800"
-                        }`}
-                      >
-                        English
-                      </button>
-                      <button
-                        onClick={() => changeLanguage(LANGUAGES.AR)}
-                        className={`flex-1 py-1.5 px-3 rounded-md text-sm font-medium transition ${
-                          language === LANGUAGES.AR
-                            ? "bg-indigo-600 text-white shadow-sm"
-                            : "text-gray-600 hover:text-gray-800"
-                        }`}
-                      >
-                        العربية
-                      </button>
-                    </div>
-                  </div>
-
                   {/* Profile Link */}
                   <button
                     onClick={handleProfile}
@@ -170,15 +157,14 @@ const AuthenticatedLayout = ({ children }: { children: React.ReactNode }) => {
                     Profile
                   </button>
 
-                  {/* Logout */}
+                  {/* Help Link */}
                   <button
-                    onClick={handleLogout}
-                    className="w-full px-4 py-3 text-left text-red-500 hover:bg-red-50 transition flex items-center gap-3"
+                    className="w-full px-4 py-3 text-left text-gray-700 hover:bg-indigo-50 transition flex items-center gap-3"
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
-                    Logout
+                    Help
                   </button>
                 </motion.div>
               )}
@@ -196,7 +182,7 @@ const AuthenticatedLayout = ({ children }: { children: React.ReactNode }) => {
       />
 
       {/* Main Content */}
-      <main className={`pt-20 px-4 md:px-6 pb-6 ${isRTL ? 'text-right' : 'text-left'}`}>
+      <main className={`flex-1 pt-20 px-4 md:px-6 pb-6 ${isRTL ? 'text-right' : 'text-left'}`} style={{ minHeight: '100vh' }}>
         {children}
       </main>
     </div>

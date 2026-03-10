@@ -2,8 +2,330 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Your existing global styles can stay below */
+/* =============================================================================
+   THEME CSS VARIABLES
+   =============================================================================
+   These CSS variables are set dynamically based on the selected theme.
+   The ThemeContext updates these variables when the theme changes.
+   
+   Themes:
+   - modern-purple: Default purple/indigo theme with gradient
+   - corporate-blue: ServiceNow-inspired professional theme with gradient
+   - neon-green: AI/Cyberpunk with neon green accents and gradient
+   ============================================================================= */
+
+/* Default Theme: Modern Purple - Dark gradient */
+[data-theme="modern-purple"] {
+  --color-primary: #4f46e5;
+  --color-primary-light: #818cf8;
+  --color-primary-dark: #312e81;
+  --color-accent: #a855f7;
+  --color-accent-light: #c084fc;
+  --color-background: linear-gradient(180deg, #312e81 0%, #4f46e5 50%, #7c3aed 100%);
+  --color-background-solid: #f3f4f6;
+  --color-background-secondary: #ffffff;
+  --color-text: #111827;
+  --color-text-secondary: #6b7280;
+  --color-border: #e5e7eb;
+}
+
+/* Corporate Blue Theme - Dark gradient */
+[data-theme="corporate-blue"] {
+  --color-primary: #0c2045;
+  --color-primary-light: #1a2b4a;
+  --color-primary-dark: #061020;
+  --color-accent: #00d4ff;
+  --color-accent-light: #5ce1ff;
+  --color-background: linear-gradient(180deg, #061020 0%, #0c2045 50%, #1a2b4a 100%);
+  --color-background-solid: #f8f9fa;
+  --color-background-secondary: #ffffff;
+  --color-text: #1a1a1a;
+  --color-text-secondary: #6b7280;
+  --color-border: #e5e7eb;
+}
+
+/* Neon Green Theme - Horizontal gradient */
+[data-theme="neon-green"] {
+  --color-primary: #1C4E57;
+  --color-primary-light: #1F5E5A;
+  --color-primary-dark: #267C63;
+  --color-accent: #2ED573;
+  --color-accent-light: #59E063;
+  --color-background: linear-gradient(90deg, #1C4E57 0%, #1F5E5A 35%, #267C63 70%, #2ED573 100%);
+  --color-background-solid: #1C4E57;
+  --color-background-secondary: #59E063;
+  --color-text: #0B2F3A;
+  --color-text-secondary: #1C4E57;
+  --color-border: rgba(0,0,0,0.1);
+}
+
+/* HTML & Body base styles */
 html,
 body {
   height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+/* Smooth transitions for theme changes */
+* {
+  transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+}
+
+/* =============================================================================
+   THEME SPECIFIC COMPONENT STYLES
+   ============================================================================= */
+
+/* Cards */
+[data-theme="modern-purple"] .card,
+[data-theme="corporate-blue"] .card {
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+
+[data-theme="neon-green"] .card {
+  background: #59E063;
+  border: 2px solid rgba(255,255,255,0.25);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.35), 0 0 0 3px rgba(255,255,255,0.08);
+  border-radius: 16px;
+  color: #0B2F3A;
+}
+
+/* Buttons */
+[data-theme="neon-green"] .btn-primary {
+  background: #59E063;
+  color: #0B2F3A;
+  font-weight: 600;
+  border-radius: 24px;
+  padding: 12px 24px;
+  border: none;
+}
+
+[data-theme="neon-green"] .btn-primary:hover {
+  background: #48C653;
+}
+
+/* Tabs */
+[data-theme="modern-purple"] .tab-inactive,
+[data-theme="corporate-blue"] .tab-inactive {
+  background: rgba(255,255,255,0.1);
+  color: #ffffff;
+  border-radius: 40px;
+}
+
+[data-theme="modern-purple"] .tab-active,
+[data-theme="corporate-blue"] .tab-active {
+  background: #ffffff;
+  color: #4f46e5;
+  font-weight: 600;
+  border-radius: 40px;
+}
+
+[data-theme="neon-green"] .tab-inactive {
+  background: rgba(255,255,255,0.1);
+  color: #FFFFFF;
+  border-radius: 40px;
+}
+
+[data-theme="neon-green"] .tab-active {
+  background: #FFFFFF;
+  color: #0B2F3A;
+  font-weight: 600;
+  border-radius: 40px;
+}
+
+/* Page content text colors */
+[data-theme="modern-purple"] .page-content,
+[data-theme="corporate-blue"] .page-content {
+  color: #111827;
+}
+
+[data-theme="neon-green"] .page-content {
+  color: #FFFFFF;
+}
+
+/* Secondary text */
+[data-theme="neon-green"] .text-secondary {
+  color: rgba(255,255,255,0.8) !important;
+}
+
+/* Card text for neon theme */
+[data-theme="neon-green"] .card-title,
+[data-theme="neon-green"] .card-text {
+  color: #0B2F3A;
+}
+
+/* =============================================================================
+   SIDEBAR NAVIGATION STYLES
+   ============================================================================= */
+
+/* Modern Purple sidebar */
+[data-theme="modern-purple"] .nav-item {
+  color: #a5b4fc;
+}
+
+[data-theme="modern-purple"] .nav-item:hover {
+  color: #ffffff;
+  background: rgba(79, 70, 229, 0.2);
+}
+
+[data-theme="modern-purple"] .nav-item-active {
+  background: #4f46e5;
+  color: #ffffff;
+}
+
+/* Corporate Blue sidebar */
+[data-theme="corporate-blue"] .nav-item {
+  color: #7dd3fc;
+}
+
+[data-theme="corporate-blue"] .nav-item:hover {
+  color: #ffffff;
+  background: rgba(12, 32, 69, 0.5);
+}
+
+[data-theme="corporate-blue"] .nav-item-active {
+  background: #0c2045;
+  color: #ffffff;
+}
+
+/* Neon Green sidebar */
+[data-theme="neon-green"] .nav-item {
+  color: #59E063;  /* Neon green for unselected items */
+}
+
+[data-theme="neon-green"] .nav-item:hover {
+  color: #FFFFFF;
+  background: rgba(255,255,255,0.1);
+}
+
+[data-theme="neon-green"] .nav-item-active {
+  background: rgba(255,255,255,0.15);
+  color: #FFFFFF;
+}
+
+/* Page headings in neon theme - Bright green */
+[data-theme="neon-green"] .page-title,
+[data-theme="neon-green"] h1,
+[data-theme="neon-green"] h2,
+[data-theme="neon-green"] h3,
+[data-theme="neon-green"] h4,
+[data-theme="neon-green"] .heading,
+[data-theme="neon-green"] .text-gray-800,
+[data-theme="neon-green"] .text-gray-700,
+[data-theme="neon-green"] .font-semibold {
+  color: #2BE33B !important;
+}
+
+/* Override specific text colors in neon theme cards */
+[data-theme="neon-green"] .card-title,
+[data-theme="neon-green"] .card-text {
+  color: #0B2F3A !important;
+}
+
+/* Navbar/Topbar text in neon theme */
+[data-theme="neon-green"] .header-text,
+[data-theme="neon-green"] .topbar-text,
+[data-theme="neon-green"] .navbar-text {
+  color: #2BE33B !important;
+}
+
+/* All headings and titles in neon theme - Bright green */
+[data-theme="neon-green"] [class*="title"],
+[data-theme="neon-green"] [class*="heading"],
+[data-theme="neon-green"] [class*="header"] {
+  color: #2BE33B !important;
+}
+
+/* Neon card titles - dark for contrast */
+[data-theme="neon-green"] .neon-card h2,
+[data-theme="neon-green"] .neon-card h3,
+[data-theme="neon-green"] .neon-card h4,
+[data-theme="neon-green"] .neon-card .title,
+[data-theme="neon-green"] .neon-card .heading {
+  color: #0B2F3A !important;
+}
+
+/* Neon card all text - dark for contrast */
+[data-theme="neon-green"] .neon-card,
+[data-theme="neon-green"] .neon-card * {
+  color: #0B2F3A !important;
+}
+
+/* Neon card form inputs and selects */
+[data-theme="neon-green"] .neon-card input,
+[data-theme="neon-green"] .neon-card select,
+[data-theme="neon-green"] .neon-card textarea,
+[data-theme="neon-green"] .neon-card label,
+[data-theme="neon-green"] .neon-card p,
+[data-theme="neon-green"] .neon-card span {
+  color: #0B2F3A !important;
+}
+
+/* Sidebar text in neon theme */
+[data-theme="neon-green"] .sidebar-text,
+[data-theme="neon-green"] .nav-text {
+  color: #2BE33B !important;
+}
+
+/* Top/Navbar text in neon theme */
+[data-theme="neon-green"] .navbar-text,
+[data-theme="neon-green"] .topbar-text {
+  color: #2BE33B !important;
+}
+
+/* =============================================================================
+   NEON CARD GLOW EFFECT
+   ============================================================================= */
+
+/* Neon Card Effect for Neon Green Theme */
+.neon-card {
+  position: relative;
+  background: #ffffff;
+  border-radius: 20px;
+  overflow: visible;
+}
+
+.neon-card::before {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: 22px;
+  background: linear-gradient(
+    120deg,
+    #1E90FF,
+    #3DDC97,
+    #59E063,
+    #3A6BFF
+  );
+  z-index: -1;
+  filter: blur(20px);
+  opacity: 0.6;
+}
+
+.neon-card::after {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: 22px;
+  background: linear-gradient(
+    120deg,
+    #1E90FF,
+    #3DDC97,
+    #59E063,
+    #3A6BFF
+  );
+  z-index: -2;
+  filter: blur(35px);
+  opacity: 0.4;
+}
+
+/* Content wrapper inside neon card */
+.neon-card-content {
+  position: relative;
+  background: #ffffff;
+  border-radius: 20px;
+  padding: 16px;
+  z-index: 1;
 }

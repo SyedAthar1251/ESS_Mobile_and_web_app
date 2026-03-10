@@ -4,23 +4,115 @@ import { useNavigate } from "react-router-dom";
 import useLiveClock from "../../utils/useLiveClock";
 import { useLanguage } from "../../i18n/LanguageContext";
 import { useAuth } from "../../auth/useAuth";
+import { useTheme } from "../../store/ThemeContext";
+import { createEmployeeLog, getAttendanceDetailsDashboard, getEmployeeCheckinList, CheckinListItem } from "../../services/attendance.service";
+import { getDashboard, DashboardData } from "../../services/dashboard.service";
+import PunchSlider from "../../components/PunchSlider";
 
 const DashboardPage = () => {
   const { language, t } = useLanguage();
   const { user } = useAuth();
+  const { theme, themeColors } = useTheme();
   const time = useLiveClock(language);
   const navigate = useNavigate();
   const videoRef = useRef<HTMLVideoElement>(null);
 
-  const [isPunchedIn, setIsPunchedIn] = useState(false);
-  const [punchInTime, setPunchInTime] = useState<Date | null>(null);
-  const [punchInTimeStr, setPunchInTimeStr] = useState<string | null>(null);
+  // Card style - same for all themes
+  const getCardStyle = () => {
+    return {};
+  };
+
+  const [isPunchedIn, setIsPunchedIn] = useState<boolean>(() => {
+    const saved = localStorage.getItem("ess_punch_state");
+    return saved === "true";
+  });
+  const [punchInTime, setPunchInTime] = useState<Date | null>(() => {
+    const savedTime = localStorage.getItem("ess_punch_time");
+    return savedTime ? new Date(savedTime) : null;
+  });
+  const [punchInTimeStr, setPunchInTimeStr] = useState<string | null>(() => {
+    const savedTime = localStorage.getItem("ess_punch_time");
+    if (!savedTime) return null;
+    const date = new Date(savedTime);
+    const hours = date.getHours().toString().padStart(2, "0");
+    const minutes = date.getMinutes().toString().padStart(2, "0");
+    return `${hours}:${minutes}`;
+  });
   const [punchOutTime, setPunchOutTime] = useState<string | null>(null);
   const [showCamera, setShowCamera] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [workDuration, setWorkDuration] = useState<string>("");
   const [finalDuration, setFinalDuration] = useState<string>("");
   const [currentLocation, setCurrentLocation] = useState<string>("");
+  const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
+  const [dashboardLoading, setDashboardLoading] = useState(true);
+
+  // Fetch dashboard data on mount
+  useEffect(() => {
+    const fetchDashboard = async () => {
+      try {
+        console.log("[DashboardPage] Fetching dashboard data...");
+        const data = await getDashboard();
+        console.log("[DashboardPage] Dashboard data:", data);
+        setDashboardData(data);
+
+        // Fetch checkins list to determine punch state
+        if (user?.employeeId) {
+          try {
+            const checkins = await getEmployeeCheckinList(user.employeeId);
+            if (checkins && checkins.length > 0) {
+              // Sort by time descending to get the latest
+              const sortedCheckins = [...checkins].sort(
+                (a, b) => new Date(b.time).getTime() - new Date(a.time).getTime()
+              );
+              const latestCheckin = sortedCheckins[0];
+              
+              if (latestCheckin.log_type === "IN") {
+                // User punched in but not out yet - show punch out
+                setIsPunchedIn(true);
+                const punchInDate = new Date(latestCheckin.time);
+                setPunchInTime(punchInDate);
+                setPunchInTimeStr(formatTime(punchInDate));
+                localStorage.setItem("ess_punch_state", "true");
+                localStorage.setItem("ess_punch_time", latestCheckin.time);
+              } else {
+                // User punched out - show punch in
+                setIsPunchedIn(false);
+                setPunchInTime(null);
+                setPunchInTimeStr(null);
+                setPunchOutTime(formatTime(new Date(latestCheckin.time)));
+                localStorage.setItem("ess_punch_state", "false");
+                localStorage.removeItem("ess_punch_time");
+              }
+            } else {
+              // No checkins yet - show punch in
+              setIsPunchedIn(false);
+              localStorage.setItem("ess_punch_state", "false");
+            }
+          } catch (checkinError) {
+            console.error("[DashboardPage] Failed to fetch checkins:", checkinError);
+            // Fall back to dashboard API data
+            if (data.last_log_type === "IN") {
+              setIsPunchedIn(true);
+              if (data.last_log_time) {
+                const punchInDate = new Date(data.last_log_time);
+                setPunchInTime(punchInDate);
+                setPunchInTimeStr(formatTime(punchInDate));
+              }
+            } else {
+              setIsPunchedIn(false);
+            }
+          }
+        }
+      } catch (error: any) {
+        console.error("[DashboardPage] Failed to fetch dashboard:", error);
+      } finally {
+        setDashboardLoading(false);
+      }
+    };
+
+    fetchDashboard();
+  }, [user]);
 
   // Live timer effect
   useEffect(() => {
@@ -41,6 +133,16 @@ const DashboardPage = () => {
     return () => {
       if (interval) clearInterval(interval);
     };
+  }, [isPunchedIn, punchInTime]);
+
+  // Save punch state to localStorage when it changes
+  useEffect(() => {
+    localStorage.setItem("ess_punch_state", isPunchedIn ? "true" : "false");
+    if (isPunchedIn && punchInTime) {
+      localStorage.setItem("ess_punch_time", punchInTime.toISOString());
+    } else {
+      localStorage.removeItem("ess_punch_time");
+    }
   }, [isPunchedIn, punchInTime]);
 
   // Get location on mount
@@ -64,21 +166,47 @@ const DashboardPage = () => {
     });
   };
 
-  const handlePunch = () => {
-    if (!isPunchedIn) {
-      const now = new Date();
-      setPunchInTime(now);
-      setPunchInTimeStr(formatTime(now));
-      setIsPunchedIn(true);
-      setFinalDuration("");
-    } else {
-      const now = new Date();
-      const diff = now.getTime() - (punchInTime?.getTime() || now.getTime());
-      const hours = Math.floor(diff / (1000 * 60 * 60));
-      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-      setFinalDuration(`${hours}h ${minutes}m`);
-      setPunchOutTime(formatTime(now));
-      setIsPunchedIn(false);
+  const handlePunch = async () => {
+    setIsLoading(true);
+    try {
+      // Determine the log type based on current state
+      const logType = isPunchedIn ? "OUT" : "IN";
+      
+      console.log("[DashboardPage] Punch action:", logType, "Location:", currentLocation);
+      
+      // Call the actual API
+      const response = await createEmployeeLog(logType, currentLocation);
+      
+      console.log("[DashboardPage] Punch success:", response);
+      
+      if (!isPunchedIn) {
+        // Punch In successful
+        const now = new Date();
+        setPunchInTime(now);
+        setPunchInTimeStr(formatTime(now));
+        setIsPunchedIn(true);
+        setFinalDuration("");
+        
+        // Show success message
+        alert("Punch In recorded successfully!");
+      } else {
+        // Punch Out successful
+        const now = new Date();
+        const diff = now.getTime() - (punchInTime?.getTime() || now.getTime());
+        const hours = Math.floor(diff / (1000 * 60 * 60));
+        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        setFinalDuration(`${hours}h ${minutes}m`);
+        setPunchOutTime(formatTime(now));
+        setIsPunchedIn(false);
+        
+        // Show success message
+        alert("Punch Out recorded successfully!");
+      }
+    } catch (error: any) {
+      console.error("[DashboardPage] Punch error:", error);
+      alert(error.message || "Failed to record attendance. Please try again.");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -94,33 +222,47 @@ const DashboardPage = () => {
       
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        setTimeout(() => {
-          stream.getTracks().forEach(track => track.stop());
-          setShowCamera(false);
-          
-          if (!isPunchedIn) {
-            const now = new Date();
-            setPunchInTime(now);
-            setPunchInTimeStr(formatTime(now));
-            setIsPunchedIn(true);
-            setFinalDuration("");
-          } else {
-            const now = new Date();
-            const diff = now.getTime() - (punchInTime?.getTime() || now.getTime());
-            const hours = Math.floor(diff / (1000 * 60 * 60));
-            const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-            setFinalDuration(`${hours}h ${minutes}m`);
-            setPunchOutTime(formatTime(now));
-            setIsPunchedIn(false);
-          }
-          setIsLoading(false);
-        }, 2000);
+        
+        // Get the current punch state before stopping the stream
+        const currentLogType = isPunchedIn ? "OUT" : "IN";
+        
+        // Stop the camera stream
+        stream.getTracks().forEach(track => track.stop());
+        setShowCamera(false);
+        
+        console.log("[DashboardPage] Face biometric punch:", currentLogType, "Location:", currentLocation);
+        
+        // Call the actual API
+        const response = await createEmployeeLog(currentLogType, currentLocation);
+        console.log("[DashboardPage] Face biometric punch success:", response);
+        
+        if (!isPunchedIn) {
+          // Punch In successful
+          const now = new Date();
+          setPunchInTime(now);
+          setPunchInTimeStr(formatTime(now));
+          setIsPunchedIn(true);
+          setFinalDuration("");
+          alert("Punch In recorded successfully!");
+        } else {
+          // Punch Out successful
+          const now = new Date();
+          const diff = now.getTime() - (punchInTime?.getTime() || now.getTime());
+          const hours = Math.floor(diff / (1000 * 60 * 60));
+          const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+          setFinalDuration(`${hours}h ${minutes}m`);
+          setPunchOutTime(formatTime(now));
+          setIsPunchedIn(false);
+          alert("Punch Out recorded successfully!");
+        }
       }
-    } catch (err) {
-      console.error("Camera access denied:", err);
+    } catch (err: any) {
+      console.error("[DashboardPage] Face biometric error:", err);
       setShowCamera(false);
+      // Fall back to slider punch if biometric fails
+      alert(err.message || "Face recognition failed. Please use the slider to punch.");
+    } finally {
       setIsLoading(false);
-      handlePunch();
     }
   };
 
@@ -139,16 +281,16 @@ const DashboardPage = () => {
     { label: t("leave"), path: "/leave", icon: (
       <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
     )},
-    { label: t("holidays"), path: "/holidays", icon: (
+    { label: t("holidays"), path: "/holiday", icon: (
       <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>
     )},
-    { label: t("payslips"), path: "/payslips", icon: (
+    { label: t("payslips"), path: "/salary", icon: (
       <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
     )},
     { label: t("tasks"), path: "/tasks", icon: (
       <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
     )},
-    { label: t("expenses"), path: "/expenses", icon: (
+    { label: t("expenses"), path: "/expense", icon: (
       <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
     )},
     { label: t("reports"), path: "/reports", icon: (
@@ -181,23 +323,23 @@ const DashboardPage = () => {
       {showCamera && (
         <div className="fixed inset-0 z-50 bg-black flex flex-col items-center justify-center">
           <video ref={videoRef} autoPlay playsInline className="w-64 h-64 rounded-full object-cover border-4 border-white" />
-          <p className="text-white mt-4 text-lg">
+          <p className="text-black mt-4 text-lg">
             {isLoading ? "Scanning face..." : "Opening camera..."}
           </p>
-          <button onClick={() => setShowCamera(false)} className="mt-4 px-6 py-2 bg-red-500 text-white rounded-lg">
+          <button onClick={() => setShowCamera(false)} className="mt-4 px-6 py-2 bg-red-500 text-black rounded-lg">
             Cancel
           </button>
         </div>
       )}
 
-      {/* Background */}
-      <div className="absolute inset-0 -z-10" style={{ background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)" }} />
+      {/* Background - theme will show through */}
 
       {/* Punch Card */}
       <motion.div
         initial={{ scale: 0.95, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
-        className="bg-white rounded-3xl shadow-2xl p-5 mx-4"
+        className={`rounded-3xl shadow-2xl mx-4 p-5 bg-white`}
+        style={getCardStyle()}
       >
         {/* Greeting - Smaller */}
         <div className="text-left mb-3">
@@ -239,27 +381,26 @@ const DashboardPage = () => {
         )}
 
         {/* Buttons */}
-        <div className="flex items-center gap-3">
-          <button
-            onClick={handlePunch}
-            className={`flex-1 py-3 text-white text-base font-bold rounded-2xl transition-all transform hover:scale-105 ${
-              isPunchedIn
-                ? "bg-gradient-to-r from-red-500 to-red-600"
-                : "bg-gradient-to-r from-green-500 to-green-600"
-            }`}
-          >
-            {isPunchedIn ? t("punchOut") : t("punchIn")}
-          </button>
+        <div className="flex items-center gap-2">
+          {/* Slider Button for Punch In/Out */}
+          <div className="flex-1 min-w-0">
+            <PunchSlider
+              isPunchedIn={isPunchedIn}
+              isLoading={isLoading}
+              onPunch={handlePunch}
+            />
+          </div>
           
           <button
             onClick={handleFaceBiometric}
-            className="flex items-center justify-center w-12 h-12 rounded-2xl bg-gray-800 text-white shadow-lg hover:bg-gray-900 transition-all hover:scale-105"
+            className="flex-shrink-0 flex items-center justify-center w-12 h-12 rounded-2xl bg-transparent border-2 border-gray-300 shadow-lg hover:border-gray-400 transition-all hover:scale-105"
             title={t("faceScan")}
           >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
-              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-              <circle cx="12" cy="13" r="4"/>
-            </svg>
+            <img 
+              src="/icon/face-recognition_8337701.png" 
+              alt="Face Scan" 
+              className="w-7 h-7"
+            />
           </button>
         </div>
 
@@ -301,43 +442,20 @@ const DashboardPage = () => {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.05 }}
-              className="bg-white rounded-xl p-3 cursor-pointer shadow-md hover:shadow-lg transition-all flex flex-col items-center justify-center text-center"
+              className={`rounded-xl p-3 cursor-pointer shadow-md hover:shadow-lg transition-all flex flex-col items-center justify-center text-center bg-white`}
             >
-              <div className="text-indigo-600 mb-1">{item.icon}</div>
-              <span className="text-gray-700 text-xs">{item.label}</span>
+              <div className="mb-1 text-indigo-600">{item.icon}</div>
+              <span className="text-xs text-gray-700">{item.label}</span>
             </motion.div>
           ))}
         </div>
       </div>
 
-      {/* Performance Snapshot */}
-      <div className="px-4">
-        <div className="bg-white rounded-2xl shadow-lg p-4">
-          <h3 className="text-lg font-semibold text-gray-800 mb-4">{t("performanceSnapshot")}</h3>
-          <div className="grid grid-cols-3 gap-4">
-            <div className="text-center p-3 bg-gray-50 rounded-xl">
-              <div className="w-8 h-8 mx-auto mb-2 text-green-600 flex items-center justify-center"><svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div>
-              <p className="text-xl font-bold text-green-600">12</p>
-              <p className="text-xs text-gray-500 mt-1">{t("tasksDone")}</p>
-            </div>
-            <div className="text-center p-3 bg-gray-50 rounded-xl">
-              <div className="w-8 h-8 mx-auto mb-2 text-blue-600 flex items-center justify-center"><svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
-              <p className="text-xl font-bold text-blue-600">94%</p>
-              <p className="text-xs text-gray-500 mt-1">{t("attendanceRate")}</p>
-            </div>
-            <div className="text-center p-3 bg-gray-50 rounded-xl">
-              <div className="w-8 h-8 mx-auto mb-2 text-orange-600 flex items-center justify-center"><svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
-              <p className="text-xl font-bold text-orange-600">2h</p>
-              <p className="text-xs text-gray-500 mt-1">{t("overtime")}</p>
-            </div>
-          </div>
-        </div>
-      </div>
 
       {/* Upcoming Events */}
       <div className="px-4">
-        <div className="bg-white rounded-2xl shadow-lg p-4">
-          <h3 className="text-lg font-semibold text-gray-800 mb-4">{t("upcomingEvents")}</h3>
+        <div className={`rounded-2xl shadow-lg p-4 bg-white`}>
+          <h3 className="text-lg font-semibold mb-4 text-gray-800">{t("upcomingEvents")}</h3>
           <div className="space-y-3">
             <div className="flex items-center gap-3 p-3 bg-amber-50 rounded-xl">
               <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-amber-600"><svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-8a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8"/><path d="M4 16s.5-1 2-1 2.5 2 4 2 2.5-2 4-2 2.5 2 4 2 2-1 2-1"/><path d="M2 21h20"/><path d="M7 8v2"/><path d="M12 8v2"/><path d="M17 8v2"/><path d="M7 4h.01"/><path d="M12 4h.01"/><path d="M17 4h.01"/></svg></div>

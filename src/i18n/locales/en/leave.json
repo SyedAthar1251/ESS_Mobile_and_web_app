@@ -11,6 +11,7 @@
   "noLeaveRequests": "No leave requests found",
   "newLeaveApplication": "New Leave Application",
   "leaveType": "Leave Type",
+  "selectLeaveType": "Select Leave Type",
   "fromDate": "From Date",
   "toDate": "To Date",
   "reason": "Reason",

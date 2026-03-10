@@ -11,6 +11,7 @@
   "noLeaveRequests": "لا توجد طلبات إجازة",
   "newLeaveApplication": "طلب إجازة جديد",
   "leaveType": "نوع الإجازة",
+  "selectLeaveType": "اختر نوع الإجازة",
   "fromDate": "من تاريخ",
   "toDate": "إلى تاريخ",
   "reason": "السبب",

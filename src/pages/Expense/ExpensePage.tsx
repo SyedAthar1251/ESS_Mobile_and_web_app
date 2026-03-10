@@ -1,6 +1,8 @@
-import { useState, ReactNode } from "react";
+import { useState, useEffect, ReactNode } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLanguage } from "../../i18n/LanguageContext";
+import { useTheme } from "../../store/ThemeContext";
+import { getExpenseType, getExpenseList, ExpenseType, ExpenseGroupedList } from "../../services/expense.service";
 
 // Expense types
 interface ExpenseClaim {
@@ -17,12 +19,49 @@ type ExpenseView = "my_expenses" | "apply_expense" | "expense_types";
 
 const ExpensePage = () => {
   const { language, t } = useLanguage();
+  const { theme } = useTheme();
   const [activeView, setActiveView] = useState<ExpenseView>("my_expenses");
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
+  // API Data state
+  const [apiExpenseTypes, setApiExpenseTypes] = useState<ExpenseType[]>([]);
+  const [expenseList, setExpenseList] = useState<ExpenseGroupedList[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Fetch expense data on mount
+  useEffect(() => {
+    const fetchExpenseData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        
+        console.log("[ExpensePage] Fetching expense data...");
+        
+        // Fetch all expense data in parallel
+        const [types, expenses] = await Promise.all([
+          getExpenseType(),
+          getExpenseList()
+        ]);
+        
+        console.log("[ExpensePage] Expense types:", types);
+        console.log("[ExpensePage] Expense list:", expenses);
+        
+        setApiExpenseTypes(types);
+        setExpenseList(expenses);
+      } catch (err: any) {
+        console.error("[ExpensePage] Failed to fetch expense data:", err);
+        setError(err.message || "Failed to load expense data");
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchExpenseData();
+  }, []);
+
   const expenseOptions: { key: ExpenseView; label: string; icon: ReactNode }[] = [
     { key: "my_expenses", label: t("myExpenses"), icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg> },
-    { key: "apply_expense", label: t("applyExpense"), icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg> },
     { key: "expense_types", label: t("expenseTypes"), icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" /></svg> },
   ];
 
@@ -101,12 +140,20 @@ const ExpensePage = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-100 to-gray-200 p-4 space-y-6">
+    <div className="p-4 space-y-6">
       {/* Header */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h1 className="text-xl font-bold text-gray-800">{t("expense")}</h1>
-          <span className="text-sm text-gray-500">{totalClaims} {t("claims")}</span>
+          <button
+            onClick={() => setActiveView("apply_expense")}
+            className="flex items-center gap-1 px-3 py-2 bg-indigo-600 text-black rounded-lg hover:bg-indigo-700 transition-colors"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            <span className="text-sm font-medium">{t("applyExpense")}</span>
+          </button>
         </div>
 
         {/* Dashboard Stats Cards */}
@@ -130,7 +177,7 @@ const ExpensePage = () => {
       <div className="relative">
         <button
           onClick={() => setDropdownOpen(!dropdownOpen)}
-          className="w-full bg-white rounded-2xl shadow-lg p-4 flex items-center justify-between"
+          className={`w-full shadow-lg p-4 flex items-center justify-between ${theme === 'neon-green' ? 'neon-card' : 'bg-white rounded-2xl'}`}
         >
           <div className="flex items-center gap-3">
             <span className="text-2xl">{currentOption?.icon}</span>
@@ -182,7 +229,7 @@ const ExpensePage = () => {
 
       {/* My Expenses View */}
       {activeView === "my_expenses" && (
-        <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
+        <div className={`shadow-lg overflow-hidden ${theme === 'neon-green' ? 'neon-card' : 'bg-white rounded-2xl'}`}>
           {expenses.length === 0 ? (
             <div className="p-8 text-center text-gray-500">
               <p>{t("noExpenseClaims")}</p>
@@ -224,7 +271,7 @@ const ExpensePage = () => {
 
       {/* Apply Expense View */}
       {activeView === "apply_expense" && (
-        <div className="bg-white rounded-2xl shadow-lg p-4 space-y-4">
+        <div className={`shadow-lg p-4 space-y-4 ${theme === 'neon-green' ? 'neon-card' : 'bg-white rounded-2xl'}`}>
           <h2 className="font-semibold text-gray-800 mb-4">{t("newExpenseClaim")}</h2>
 
           <div>
@@ -259,7 +306,7 @@ const ExpensePage = () => {
             />
           </div>
 
-          <button className="w-full bg-indigo-600 text-white py-3 rounded-xl font-medium hover:bg-indigo-700 transition-colors">
+          <button className="w-full bg-indigo-600 text-black py-3 rounded-xl font-medium hover:bg-indigo-700 transition-colors">
             {t("submitClaim")}
           </button>
         </div>

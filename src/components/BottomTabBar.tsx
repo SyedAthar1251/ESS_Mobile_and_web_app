@@ -67,7 +67,7 @@ const BottomTabBar = () => {
                 {/* Icon */}
                 <div
                   className={`relative z-10 transition-all duration-300 ${
-                    isActive ? "text-white scale-110" : "text-gray-400"
+                    isActive ? "text-black scale-110" : "text-gray-400"
                   }`}
                 >
                   {tab.icon}
@@ -76,7 +76,7 @@ const BottomTabBar = () => {
                 {/* Label - separate from icon to avoid overlap */}
                 <span
                   className={`relative z-10 text-xs mt-1 font-medium transition-all duration-300 ${
-                    isActive ? "text-white" : "text-gray-400"
+                    isActive ? "text-black" : "text-gray-400"
                   }`}
                 >
                   {tab.label}

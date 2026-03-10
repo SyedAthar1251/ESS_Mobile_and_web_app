@@ -1,19 +1,33 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "../../auth/useAuth";
 import { motion } from "framer-motion";
+import { SplashScreen } from "@capacitor/splash-screen";
 
 const SplashPage = () => {
-  const { isAuthenticated } = useAuth();
+  const [isReady, setIsReady] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
+    // Check if user was previously logged in
+    const wasLoggedIn = localStorage.getItem('ess_logged_in') === 'true';
+    
+    // Hide native splash screen when this component loads
+    const hideSplash = async () => {
+      try {
+        await SplashScreen.hide();
+      } catch (e) {
+        console.log('SplashScreen not available:', e);
+      }
+    };
+    hideSplash();
+
+    // Wait a bit then navigate
     const timer = setTimeout(() => {
-      navigate(isAuthenticated ? "/dashboard" : "/login", { replace: true });
+      navigate(wasLoggedIn ? "/dashboard" : "/login", { replace: true });
     }, 1200);
 
     return () => clearTimeout(timer);
-  }, [isAuthenticated, navigate]);
+  }, [navigate]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-600 to-purple-700">
@@ -22,7 +36,7 @@ const SplashPage = () => {
         animate={{ opacity: 1, scale: 1 }}
         className="text-white text-2xl font-bold"
       >
-        ESS
+        AlphaX Workforce
       </motion.div>
     </div>
   );

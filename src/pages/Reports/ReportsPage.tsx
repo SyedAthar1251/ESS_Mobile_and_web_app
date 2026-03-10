@@ -1,6 +1,7 @@
 import { useState, ReactNode } from "react";
 import { motion } from "framer-motion";
 import { useLanguage } from "../../i18n/LanguageContext";
+import { useTheme } from "../../store/ThemeContext";
 
 // Report types
 interface Report {
@@ -75,6 +76,7 @@ const reports: Report[] = [
 
 const ReportsPage = () => {
   const { language, t } = useLanguage();
+  const { theme } = useTheme();
   const [selectedCategory, setSelectedCategory] = useState<ReportCategory>("all");
 
   const filteredReports = reports.filter((report) => {
@@ -97,7 +99,7 @@ const ReportsPage = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-100 to-gray-200 p-4 space-y-6">
+    <div className="p-4 space-y-6">
       {/* Header */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
@@ -130,7 +132,7 @@ const ReportsPage = () => {
             onClick={() => setSelectedCategory(category.key)}
             className={`flex items-center gap-2 py-2 px-4 rounded-xl font-medium whitespace-nowrap transition-colors ${
               selectedCategory === category.key
-                ? "bg-indigo-600 text-white"
+                ? "bg-indigo-600 text-black"
                 : "bg-white text-gray-600 hover:bg-gray-50"
             }`}
           >
@@ -148,7 +150,7 @@ const ReportsPage = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: index * 0.1 }}
-            className="bg-white rounded-2xl shadow-lg p-4 hover:shadow-xl transition-shadow cursor-pointer"
+            className={`shadow-lg p-4 hover:shadow-xl transition-shadow cursor-pointer ${theme === 'neon-green' ? 'neon-card' : 'bg-white rounded-2xl'}`}
           >
             <div className="flex items-start gap-4">
               <div className="h-14 w-14 rounded-xl bg-gradient-to-br from-indigo-100 to-purple-100 flex items-center justify-center text-2xl">

@@ -13,8 +13,13 @@ import DocumentsPage from "../pages/Documents/DocumentsPage";
 import NotificationsPage from "../pages/Notifications/NotificationsPage";
 import HolidayActivityPage from "../pages/Holiday/HolidayActivityPage";
 import ReportsPage from "../pages/Reports/ReportsPage";
+import SettingsPage from "../pages/Settings/SettingsPage";
+import TravelPage from "../pages/Travel/TravelPage";
+import LoanPage from "../pages/Loan/LoanPage";
+import MagicNavPage from "../pages/MagicNav/MagicNavPage";
 
 import AuthenticatedLayout from "./AuthenticatedLayout";
+import ComingSoon from "../components/ComingSoon";
 
 const AppRoutes = () => {
   return (
@@ -40,10 +45,10 @@ const AppRoutes = () => {
         }
       />
       <Route
-        path="/leave"
+        path="/notifications"
         element={
           <AuthenticatedLayout>
-            <LeavePage />
+            <NotificationsPage />
           </AuthenticatedLayout>
         }
       />
@@ -56,10 +61,42 @@ const AppRoutes = () => {
         }
       />
       <Route
+        path="/settings"
+        element={
+          <AuthenticatedLayout>
+            <SettingsPage />
+          </AuthenticatedLayout>
+        }
+      />
+
+      {/* Phase 2 - Advanced AlphaX - Coming Soon */}
+      <Route
+        path="/holiday"
+        element={
+          <AuthenticatedLayout>
+            <ComingSoon title="Holiday & Activities">
+              <HolidayActivityPage />
+            </ComingSoon>
+          </AuthenticatedLayout>
+        }
+      />
+      <Route
+        path="/leave"
+        element={
+          <AuthenticatedLayout>
+            <ComingSoon title="Leave Management">
+              <LeavePage />
+            </ComingSoon>
+          </AuthenticatedLayout>
+        }
+      />
+      <Route
         path="/expense"
         element={
           <AuthenticatedLayout>
-            <ExpensePage />
+            <ComingSoon title="Expenses">
+              <ExpensePage />
+            </ComingSoon>
           </AuthenticatedLayout>
         }
       />
@@ -67,7 +104,9 @@ const AppRoutes = () => {
         path="/salary"
         element={
           <AuthenticatedLayout>
-            <SalaryPage />
+            <ComingSoon title="Salary & Payslips">
+              <SalaryPage />
+            </ComingSoon>
           </AuthenticatedLayout>
         }
       />
@@ -75,7 +114,9 @@ const AppRoutes = () => {
         path="/tasks"
         element={
           <AuthenticatedLayout>
-            <TaskPage />
+            <ComingSoon title="Tasks">
+              <TaskPage />
+            </ComingSoon>
           </AuthenticatedLayout>
         }
       />
@@ -83,23 +124,9 @@ const AppRoutes = () => {
         path="/documents"
         element={
           <AuthenticatedLayout>
-            <DocumentsPage />
-          </AuthenticatedLayout>
-        }
-      />
-      <Route
-        path="/notifications"
-        element={
-          <AuthenticatedLayout>
-            <NotificationsPage />
-          </AuthenticatedLayout>
-        }
-      />
-      <Route
-        path="/holiday"
-        element={
-          <AuthenticatedLayout>
-            <HolidayActivityPage />
+            <ComingSoon title="Documents">
+              <DocumentsPage />
+            </ComingSoon>
           </AuthenticatedLayout>
         }
       />
@@ -107,7 +134,41 @@ const AppRoutes = () => {
         path="/reports"
         element={
           <AuthenticatedLayout>
-            <ReportsPage />
+            <ComingSoon title="Reports">
+              <ReportsPage />
+            </ComingSoon>
+          </AuthenticatedLayout>
+        }
+      />
+
+      {/* Phase 3 - Manager Features - Coming Soon */}
+      <Route
+        path="/travel"
+        element={
+          <AuthenticatedLayout>
+            <ComingSoon title="Travel Requests">
+              <TravelPage />
+            </ComingSoon>
+          </AuthenticatedLayout>
+        }
+      />
+      <Route
+        path="/loan"
+        element={
+          <AuthenticatedLayout>
+            <ComingSoon title="Loans">
+              <LoanPage />
+            </ComingSoon>
+          </AuthenticatedLayout>
+        }
+      />
+
+      {/* Demo - Magic Navigation */}
+      <Route
+        path="/magic-nav"
+        element={
+          <AuthenticatedLayout>
+            <MagicNavPage />
           </AuthenticatedLayout>
         }
       />

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLanguage } from "../../i18n/LanguageContext";
+import { useTheme } from "../../store/ThemeContext";
 
 // Holiday types
 interface Holiday {
@@ -24,6 +25,7 @@ type ViewType = "holidays" | "activities";
 
 const HolidayActivityPage = () => {
   const { language, t } = useLanguage();
+  const { theme } = useTheme();
   const [activeView, setActiveView] = useState<ViewType>("holidays");
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
@@ -99,7 +101,7 @@ const HolidayActivityPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-100 to-gray-200 p-4 space-y-6">
+    <div className="p-4 space-y-6">
       {/* Header */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
@@ -128,7 +130,7 @@ const HolidayActivityPage = () => {
       <div className="relative">
         <button
           onClick={() => setDropdownOpen(!dropdownOpen)}
-          className="w-full bg-white rounded-2xl shadow-lg p-4 flex items-center justify-between"
+          className={`w-full shadow-lg p-4 flex items-center justify-between ${theme === 'neon-green' ? 'neon-card' : 'bg-white rounded-2xl'}`}
         >
           <div className="flex items-center gap-3">
             <span className="text-2xl">{currentOption?.icon}</span>
@@ -191,7 +193,7 @@ const HolidayActivityPage = () => {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.1 }}
-                  className="bg-white rounded-2xl shadow-lg p-4 flex items-center gap-4"
+                  className={`shadow-lg p-4 flex items-center gap-4 ${theme === 'neon-green' ? 'neon-card' : 'bg-white rounded-2xl'}`}
                 >
                   <div className="h-14 w-14 rounded-xl bg-gradient-to-br from-purple-100 to-pink-100 flex flex-col items-center justify-center">
                     <span className="text-lg font-bold text-purple-600">
@@ -251,7 +253,7 @@ const HolidayActivityPage = () => {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.1 }}
-              className="bg-white rounded-2xl shadow-lg p-4"
+              className={`shadow-lg p-4 ${theme === 'neon-green' ? 'neon-card' : 'bg-white rounded-2xl'}`}
             >
               <div className="flex items-start justify-between mb-2">
                 <div>

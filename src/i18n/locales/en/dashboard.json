@@ -1,6 +1,7 @@
 {
   "today": "Today",
   "yesterday": "Yesterday",
+  "previousMonth": "Previous Month",
   "punchIn": "Punch In",
   "punchOut": "Punch Out",
   "workingHours": "Working Hours",

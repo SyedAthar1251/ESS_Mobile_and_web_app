@@ -1,6 +1,8 @@
-import { useState, ReactNode } from "react";
+import { useState, useEffect, ReactNode } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLanguage } from "../../i18n/LanguageContext";
+import { useTheme } from "../../store/ThemeContext";
+import { getSalarySlipList, SalarySlipGrouped } from "../../services/salary.service";
 
 // Salary Slip types
 interface SalarySlip {
@@ -17,11 +19,60 @@ interface SalarySlip {
 // Dropdown options
 type SalaryView = "salary_slips" | "salary_details";
 
+// Filter types
+interface SalaryFilters {
+  dateRange: string;
+  fromDate: string;
+  toDate: string;
+  payrollMonth: string;
+  payrollPeriod: string;
+}
+
 const SalaryPage = () => {
   const { language, t } = useLanguage();
+  const { theme, themeColors } = useTheme();
   const [activeView, setActiveView] = useState<SalaryView>("salary_slips");
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [selectedSlip, setSelectedSlip] = useState<SalarySlip | null>(null);
+
+  // API Data state
+  const [apiSalarySlips, setApiSalarySlips] = useState<SalarySlipGrouped[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Filter state
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [filters, setFilters] = useState<SalaryFilters>({
+    dateRange: "",
+    fromDate: "",
+    toDate: "",
+    payrollMonth: "",
+    payrollPeriod: "",
+  });
+
+  // Fetch salary data on mount
+  useEffect(() => {
+    const fetchSalaryData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        
+        console.log("[SalaryPage] Fetching salary data...");
+        
+        const data = await getSalarySlipList();
+        console.log("[SalaryPage] Salary slips:", data);
+        
+        setApiSalarySlips(data);
+      } catch (err: any) {
+        console.error("[SalaryPage] Failed to fetch salary data:", err);
+        setError(err.message || "Failed to load salary data");
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchSalaryData();
+  }, []);
 
   const salaryOptions: { key: SalaryView; label: string; icon: ReactNode }[] = [
     { key: "salary_slips", label: t("salarySlips"), icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg> },
@@ -102,17 +153,26 @@ const SalaryPage = () => {
   const totalDeductions = salarySlips.reduce((sum, s) => sum + s.deductions, 0);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-100 to-gray-200 p-4 space-y-6">
+    <div className="p-4 space-y-6">
       {/* Header */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h1 className="text-xl font-bold text-gray-800">{t("salary")}</h1>
-          <span className="text-sm text-gray-500">{salarySlips.length} {t("slips")}</span>
+          <button
+            onClick={() => setFilterOpen(true)}
+            className="flex items-center gap-1 px-3 py-2 text-black rounded-lg transition-colors"
+            style={{ backgroundColor: themeColors.primary }}
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+            </svg>
+            <span className="text-sm font-medium">{t("filter")}</span>
+          </button>
         </div>
       </div>
 
       {/* Main Summary Card */}
-      <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl p-6 text-white">
+      <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl p-6 text-black">
         <p className="text-sm opacity-80">{t("currentMonthNetPay")}</p>
         <p className="text-4xl font-bold mt-1">{formatCurrency(salarySlips[0].net_pay)}</p>
         <p className="text-sm opacity-80 mt-2">{getMonthName(salarySlips[0].month)} {salarySlips[0].year}</p>
@@ -122,7 +182,7 @@ const SalaryPage = () => {
       <div className="relative">
         <button
           onClick={() => setDropdownOpen(!dropdownOpen)}
-          className="w-full bg-white rounded-2xl shadow-lg p-4 flex items-center justify-between"
+          className={`w-full shadow-lg p-4 flex items-center justify-between ${theme === 'neon-green' ? 'neon-card' : 'bg-white rounded-2xl'}`}
         >
           <div className="flex items-center gap-3">
             <span className="text-2xl">{currentOption?.icon}</span>
@@ -182,7 +242,7 @@ const SalaryPage = () => {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.1 }}
               onClick={() => setSelectedSlip(slip)}
-              className="bg-white rounded-2xl shadow-lg p-4 cursor-pointer hover:shadow-xl transition-shadow"
+              className={`shadow-lg p-4 cursor-pointer hover:shadow-xl transition-shadow ${theme === 'neon-green' ? 'neon-card' : 'bg-white rounded-2xl'}`}
             >
               <div className="flex items-center justify-between mb-3">
                 <div>
@@ -208,7 +268,7 @@ const SalaryPage = () => {
 
       {/* Salary Details View */}
       {activeView === "salary_details" && (
-        <div className="bg-white rounded-2xl shadow-lg p-4 space-y-6 overflow-x-hidden">
+        <div className={`shadow-lg p-4 space-y-6 overflow-x-hidden ${theme === 'neon-green' ? 'neon-card' : 'bg-white rounded-2xl'}`}>
           <h2 className="font-semibold text-gray-800 whitespace-nowrap overflow-hidden text-ellipsis">{t("salaryBreakdown")}</h2>
 
           {/* Earnings */}
@@ -253,7 +313,7 @@ const SalaryPage = () => {
             </div>
           </div>
 
-          <button className="w-full bg-indigo-600 text-white py-3 rounded-xl font-medium hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2">
+          <button className="w-full bg-indigo-600 text-black py-3 rounded-xl font-medium hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2">
             <span>{t("downloadPayslip")}</span>
           </button>
         </div>
@@ -304,8 +364,150 @@ const SalaryPage = () => {
                       <p className="font-bold text-indigo-600">{formatCurrency(selectedSlip.net_pay)}</p>
                     </div>
                   </div>
-                  <button className="w-full bg-indigo-600 text-white py-3 rounded-xl font-medium">
+                  <button className="w-full bg-indigo-600 text-black py-3 rounded-xl font-medium">
                     Download PDF
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Filter Modal */}
+      <AnimatePresence>
+        {filterOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/50 z-50"
+              onClick={() => setFilterOpen(false)}
+            />
+            <motion.div
+              initial={{ opacity: 0, y: 50 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 50 }}
+              className="fixed bottom-0 left-0 right-0 bg-white rounded-t-3xl max-h-[85vh] overflow-y-auto z-50"
+            >
+              <div className="p-6">
+                {/* Header */}
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-xl font-bold text-gray-800">{t("filter")}</h2>
+                  <button
+                    onClick={() => setFilterOpen(false)}
+                    className="p-2 hover:bg-gray-100 rounded-full"
+                  >
+                    <svg className="w-6 h-6 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+
+                {/* Date Range Section */}
+                <div className="mb-6">
+                  <label className="block text-sm font-semibold text-gray-700 mb-3">{t("dateRange")}</label>
+                  <select
+                    value={filters.dateRange}
+                    onChange={(e) => setFilters({ ...filters, dateRange: e.target.value })}
+                    className="w-full p-3 border border-gray-200 rounded-xl bg-gray-50 text-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value="">{t("selectOption")}</option>
+                    <option value="this_month">{t("thisMonth")}</option>
+                    <option value="last_month">{t("lastMonth")}</option>
+                    <option value="this_year">{t("thisYear")}</option>
+                    <option value="custom">{t("custom")}</option>
+                  </select>
+
+                  {/* Custom Date Range */}
+                  {filters.dateRange === "custom" && (
+                    <div className="mt-3 space-y-3">
+                      <div>
+                        <label className="block text-sm text-gray-600 mb-1">{t("fromDate")}</label>
+                        <input
+                          type="date"
+                          value={filters.fromDate}
+                          onChange={(e) => setFilters({ ...filters, fromDate: e.target.value })}
+                          className="w-full p-3 border border-gray-200 rounded-xl bg-gray-50 text-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm text-gray-600 mb-1">{t("toDate")}</label>
+                        <input
+                          type="date"
+                          value={filters.toDate}
+                          onChange={(e) => setFilters({ ...filters, toDate: e.target.value })}
+                          className="w-full p-3 border border-gray-200 rounded-xl bg-gray-50 text-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Payroll Month */}
+                <div className="mb-6">
+                  <label className="block text-sm font-semibold text-gray-700 mb-3">{t("payrollMonth")}</label>
+                  <select
+                    value={filters.payrollMonth}
+                    onChange={(e) => setFilters({ ...filters, payrollMonth: e.target.value })}
+                    className="w-full p-3 border border-gray-200 rounded-xl bg-gray-50 text-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value="">{t("all")}</option>
+                    <option value="1">{t("january")}</option>
+                    <option value="2">{t("february")}</option>
+                    <option value="3">{t("march")}</option>
+                    <option value="4">{t("april")}</option>
+                    <option value="5">{t("may")}</option>
+                    <option value="6">{t("june")}</option>
+                    <option value="7">{t("july")}</option>
+                    <option value="8">{t("august")}</option>
+                    <option value="9">{t("september")}</option>
+                    <option value="10">{t("october")}</option>
+                    <option value="11">{t("november")}</option>
+                    <option value="12">{t("december")}</option>
+                  </select>
+                </div>
+
+                {/* Payroll Period */}
+                <div className="mb-6">
+                  <label className="block text-sm font-semibold text-gray-700 mb-3">{t("payrollPeriod")}</label>
+                  <select
+                    value={filters.payrollPeriod}
+                    onChange={(e) => setFilters({ ...filters, payrollPeriod: e.target.value })}
+                    className="w-full p-3 border border-gray-200 rounded-xl bg-gray-50 text-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value="">{t("all")}</option>
+                    <option value="Q1">{t("quarter")} 1</option>
+                    <option value="Q2">{t("quarter")} 2</option>
+                    <option value="Q3">{t("quarter")} 3</option>
+                    <option value="Q4">{t("quarter")} 4</option>
+                    <option value="H1">{t("half")} 1</option>
+                    <option value="H2">{t("half")} 2</option>
+                    <option value="full_year">{t("fullYear")}</option>
+                  </select>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setFilters({
+                      dateRange: "",
+                      fromDate: "",
+                      toDate: "",
+                      payrollMonth: "",
+                      payrollPeriod: "",
+                    })}
+                    className="flex-1 py-3 px-6 border border-gray-300 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 transition-colors"
+                  >
+                    {t("reset")}
+                  </button>
+                  <button
+                    onClick={() => setFilterOpen(false)}
+                    className="flex-1 py-3 px-6 text-black rounded-xl font-semibold transition-colors"
+                    style={{ backgroundColor: themeColors.primary }}
+                  >
+                    {t("apply")}
                   </button>
                 </div>
               </div>

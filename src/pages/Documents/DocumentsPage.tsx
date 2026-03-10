@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLanguage } from "../../i18n/LanguageContext";
+import { useTheme } from "../../store/ThemeContext";
 
 // Document types
 interface Document {
@@ -17,6 +18,7 @@ type DocumentView = "my_documents" | "upload_document";
 
 const DocumentsPage = () => {
   const { language, t } = useLanguage();
+  const { theme } = useTheme();
   const [activeView, setActiveView] = useState<DocumentView>("my_documents");
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
@@ -94,7 +96,7 @@ const DocumentsPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-100 to-gray-200 p-4 space-y-6">
+    <div className="p-4 space-y-6">
       {/* Header */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
@@ -123,7 +125,7 @@ const DocumentsPage = () => {
       <div className="relative">
         <button
           onClick={() => setDropdownOpen(!dropdownOpen)}
-          className="w-full bg-white rounded-2xl shadow-lg p-4 flex items-center justify-between"
+          className={`w-full shadow-lg p-4 flex items-center justify-between ${theme === 'neon-green' ? 'neon-card' : 'bg-white rounded-2xl'}`}
         >
           <div className="flex items-center gap-3">
             <span className="text-2xl">{currentOption?.icon}</span>
@@ -175,7 +177,7 @@ const DocumentsPage = () => {
 
       {/* My Documents View */}
       {activeView === "my_documents" && (
-        <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
+        <div className={`shadow-lg overflow-hidden ${theme === 'neon-green' ? 'neon-card' : 'bg-white rounded-2xl'}`}>
           {documents.length === 0 ? (
             <div className="p-8 text-center text-gray-500">
               <p>{t("noDocumentsFound")}</p>
@@ -222,7 +224,7 @@ const DocumentsPage = () => {
 
       {/* Upload Document View */}
       {activeView === "upload_document" && (
-        <div className="bg-white rounded-2xl shadow-lg p-6 space-y-4">
+        <div className={`shadow-lg p-6 space-y-4 ${theme === 'neon-green' ? 'neon-card' : 'bg-white rounded-2xl'}`}>
           <h2 className="font-semibold text-gray-800 mb-4">{t("uploadNewDocument")}</h2>
 
           {/* Upload Area */}
@@ -255,7 +257,7 @@ const DocumentsPage = () => {
             </select>
           </div>
 
-          <button className="w-full bg-indigo-600 text-white py-3 rounded-xl font-medium hover:bg-indigo-700 transition-colors">
+          <button className="w-full bg-indigo-600 text-black py-3 rounded-xl font-medium hover:bg-indigo-700 transition-colors">
             {t("uploadDocumentButton")}
           </button>
         </div>

@@ -1,6 +1,8 @@
 {
-  "welcomeBack": "أهلاً بعودتك 👋",
+  "welcomeBack": "هيا بنا لتسجيل الدخول",
   "pleaseLogin": "الرجاء تسجيل الدخول للمتابعة",
+  "loginWithUrl": "تسجيل الدخول عبر الرابط",
+  "loginWithQr": "تسجيل الدخول عبر رمز QR",
   "companyUrl": "رابط الشركة (مثلاً: ess.mycompany.com)",
   "employeeId": "رقم الموظف",
   "password": "كلمة المرور",

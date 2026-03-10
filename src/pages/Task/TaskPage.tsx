@@ -1,6 +1,7 @@
 import { useState, ReactNode } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLanguage } from "../../i18n/LanguageContext";
+import { useTheme } from "../../store/ThemeContext";
 
 // Task types
 interface Task {
@@ -18,6 +19,7 @@ type TaskView = "my_tasks" | "create_task";
 
 const TaskPage = () => {
   const { language, t } = useLanguage();
+  const { theme } = useTheme();
   const [activeView, setActiveView] = useState<TaskView>("my_tasks");
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
@@ -34,7 +36,7 @@ const TaskPage = () => {
       status: "In Progress",
       priority: "High",
       due_date: "2024-02-25",
-      project: "ESS Mobile App",
+      project: "AlphaX Workforce Mobile App",
       description: "Write comprehensive documentation for the mobile app",
     },
     {
@@ -43,7 +45,7 @@ const TaskPage = () => {
       status: "Open",
       priority: "Medium",
       due_date: "2024-02-28",
-      project: "ESS Mobile App",
+      project: "AlphaX Workforce Mobile App",
       description: "Review and approve pending PRs from the team",
     },
     {
@@ -52,7 +54,7 @@ const TaskPage = () => {
       status: "Completed",
       priority: "Urgent",
       due_date: "2024-02-20",
-      project: "ESS Mobile App",
+      project: "AlphaX Workforce Mobile App",
       description: "Users unable to login with valid credentials",
     },
     {
@@ -61,7 +63,7 @@ const TaskPage = () => {
       status: "Open",
       priority: "Low",
       due_date: "2024-03-05",
-      project: "ESS Mobile App",
+      project: "AlphaX Workforce Mobile App",
       description: "Refresh the design of existing components",
     },
   ];
@@ -105,7 +107,7 @@ const TaskPage = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-100 to-gray-200 p-4 space-y-6">
+    <div className="p-4 space-y-6">
       {/* Header */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
@@ -134,7 +136,7 @@ const TaskPage = () => {
       <div className="relative">
         <button
           onClick={() => setDropdownOpen(!dropdownOpen)}
-          className="w-full bg-white rounded-2xl shadow-lg p-4 flex items-center justify-between"
+          className={`w-full shadow-lg p-4 flex items-center justify-between ${theme === 'neon-green' ? 'neon-card' : 'bg-white rounded-2xl'}`}
         >
           <div className="flex items-center gap-3">
             <span className="text-2xl">{currentOption?.icon}</span>
@@ -198,7 +200,7 @@ const TaskPage = () => {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.05 }}
-                className="bg-white rounded-2xl shadow-lg p-4"
+                className={`shadow-lg p-4 ${theme === 'neon-green' ? 'neon-card' : 'bg-white rounded-2xl'}`}
               >
                 <div className="flex items-start justify-between mb-2">
                   <div className="flex-1">
@@ -232,7 +234,7 @@ const TaskPage = () => {
 
       {/* Create Task View */}
       {activeView === "create_task" && (
-        <div className="bg-white rounded-2xl shadow-lg p-4 space-y-4">
+        <div className={`shadow-lg p-4 space-y-4 ${theme === 'neon-green' ? 'neon-card' : 'bg-white rounded-2xl'}`}>
           <h2 className="font-semibold text-gray-800 mb-4">{t("createNewTask")}</h2>
 
           <div>
@@ -247,7 +249,7 @@ const TaskPage = () => {
           <div>
             <label className="block text-sm font-medium text-gray-600 mb-1">{t("project")}</label>
             <select className="w-full p-3 border border-gray-200 rounded-xl bg-gray-50">
-              <option>ESS Mobile App</option>
+              <option>AlphaX Workforce Mobile App</option>
               <option>Web Dashboard</option>
               <option>API Development</option>
             </select>
@@ -278,7 +280,7 @@ const TaskPage = () => {
             />
           </div>
 
-          <button className="w-full bg-indigo-600 text-white py-3 rounded-xl font-medium hover:bg-indigo-700 transition-colors">
+          <button className="w-full bg-indigo-600 text-black py-3 rounded-xl font-medium hover:bg-indigo-700 transition-colors">
             {t("createTaskButton")}
           </button>
         </div>

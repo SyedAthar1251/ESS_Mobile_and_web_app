@@ -1,11 +1,13 @@
 {
-  "welcomeBack": "Welcome Back 👋",
+  "welcomeBack": "Lets Sign you in",
   "pleaseLogin": "Please login to continue",
+  "loginWithUrl": "Login with URL",
+  "loginWithQr": "Login with QR",
   "companyUrl": "Company URL (e.g. ess.mycompany.com)",
   "employeeId": "Employee ID",
   "password": "Password",
   "forgotPassword": "Forgot Password?",
   "login": "Login",
-  "createAccount": "Don\\'t have an account?",
+  "createAccount": "Don't have an account?",
   "createUser": "Create User"
 }

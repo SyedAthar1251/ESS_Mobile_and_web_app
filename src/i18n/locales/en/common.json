@@ -25,5 +25,7 @@
   "profile": "Profile",
   "location": "Current Location",
   "punchIn": "Punch In",
-  "punchOut": "Punch Out"
+  "punchOut": "Punch Out",
+  "theme": "Theme",
+  "selectTheme": "Select Theme"
 }

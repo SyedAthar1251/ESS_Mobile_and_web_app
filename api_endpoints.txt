@@ -1,0 +1,230 @@
+API Endpoints for Employee Self Service Mobile App
+==================================================
+
+Base URL: https://your-domain.com/api/method/employee_self_service.mobile.ess.<method_name>
+
+Total: 41 Unique APIs (Sorted Alphabetically)
+
+Total APIs: 41 unique endpoints (removed duplicates from the original 44)
+Categorized Breakdown:
+
+Authentication (2): login, change_password
+Leave Management (4): make_leave_application, get_leave_type, get_leave_application_list, get_leave_balance_dashboard
+Expense Management (4): get_expense_type, book_expense, get_expense_list, apply_expense
+Salary (3): get_salary_sllip, download_salary_slip, download_pdf
+Dashboard (2): get_dashboard, get_attendance_details_dashboard
+Attendance (3): run_attendance_report, create_employee_log, get_attendance_list
+Tasks (6): get_task_list, update_task_status, get_task_list_dashboard, get_task_by_id, create_task, get_task_status_list
+Holiday/Activity (2): get_holiday_list, upcoming_activity
+Comments (2): add_comment, get_comments
+Profile (2): get_profile, update_profile_picture
+Documents (3): upload_documents, document_list, delete_documents
+Notifications (2): employee_device_info, notification_list
+Organization/Reference Data (5): get_branch, get_customer_list, get_employee_list, get_project_list, get_user_list
+Accounting (1): get_transactions
+--------------------------------------------
+
+1.  add_comment
+    URL: /api/method/employee_self_service.mobile.ess.add_comment
+    Method: POST
+    Auth: Required
+
+2.  apply_expense
+    URL: /api/method/employee_self_service.mobile.ess.apply_expense
+    Method: POST
+    Auth: Required
+
+3.  book_expense
+    URL: /api/method/employee_self_service.mobile.ess.book_expense
+    Method: POST
+    Auth: Required
+
+4.  change_password
+    URL: /api/method/employee_self_service.mobile.ess.change_password
+    Method: POST
+    Auth: Logged-in session
+
+5.  create_employee_log
+    URL: /api/method/employee_self_service.mobile.ess.create_employee_log
+    Method: POST
+    Auth: Required
+
+6.  create_task
+    URL: /api/method/employee_self_service.mobile.ess.create_task
+    Method: POST
+    Auth: Required
+
+7.  delete_documents
+    URL: /api/method/employee_self_service.mobile.ess.delete_documents
+    Method: DELETE
+    Auth: Required
+
+8.  document_list
+    URL: /api/method/employee_self_service.mobile.ess.document_list
+    Method: GET
+    Auth: Required
+
+9.  download_pdf
+    URL: /api/method/employee_self_service.mobile.ess.download_pdf
+    Method: GET
+    Auth: Required
+
+10. download_salary_slip
+    URL: /api/method/employee_self_service.mobile.ess.download_salary_slip
+    Method: GET
+    Auth: Required
+
+11. employee_device_info
+    URL: /api/method/employee_self_service.mobile.ess.employee_device_info
+    Method: POST
+    Auth: Required
+
+12. get_attendance_details_dashboard
+    URL: /api/method/employee_self_service.mobile.ess.get_attendance_details_dashboard
+    Method: GET
+    Auth: Required
+
+13. get_attendance_list
+    URL: /api/method/employee_self_service.mobile.ess.get_attendance_list
+    Method: GET
+    Auth: Required
+
+14. get_branch
+    URL: /api/method/employee_self_service.mobile.ess.get_branch
+    Method: GET
+    Auth: Required
+
+15. get_comments
+    URL: /api/method/employee_self_service.mobile.ess.get_comments
+    Method: GET
+    Auth: Required
+
+16. get_customer_list
+    URL: /api/method/employee_self_service.mobile.ess.get_customer_list
+    Method: GET
+    Auth: Required
+
+17. get_dashboard
+    URL: /api/method/employee_self_service.mobile.ess.get_dashboard
+    Method: GET
+    Auth: Required
+
+18. get_employee_list
+    URL: /api/method/employee_self_service.mobile.ess.get_employee_list
+    Method: GET
+    Auth: Required
+
+19. get_expense_list
+    URL: /api/method/employee_self_service.mobile.ess.get_expense_list
+    Method: GET
+    Auth: Required
+
+20. get_expense_type
+    URL: /api/method/employee_self_service.mobile.ess.get_expense_type
+    Method: GET
+    Auth: Required
+
+21. get_holiday_list
+    URL: /api/method/employee_self_service.mobile.ess.get_holiday_list
+    Method: GET
+    Auth: Required
+
+22. get_leave_application_list
+    URL: /api/method/employee_self_service.mobile.ess.get_leave_application_list
+    Method: GET
+    Auth: Required
+
+23. get_leave_balance_dashboard
+    URL: /api/method/employee_self_service.mobile.ess.get_leave_balance_dashboard
+    Method: GET
+    Auth: Required
+
+24. get_leave_type
+    URL: /api/method/employee_self_service.mobile.ess.get_leave_type
+    Method: GET
+    Auth: Required
+
+25. get_profile
+    URL: /api/method/employee_self_service.mobile.ess.get_profile
+    Method: GET
+    Auth: Required
+
+26. get_project_list
+    URL: /api/method/employee_self_service.mobile.ess.get_project_list
+    Method: GET
+    Auth: Required
+
+27. get_salary_sllip
+    URL: /api/method/employee_self_service.mobile.ess.get_salary_sllip
+    Method: GET
+    Auth: Required
+
+28. get_task_by_id
+    URL: /api/method/employee_self_service.mobile.ess.get_task_by_id
+    Method: GET
+    Auth: Required
+
+29. get_task_list
+    URL: /api/method/employee_self_service.mobile.ess.get_task_list
+    Method: GET
+    Auth: Required
+
+30. get_task_list_dashboard
+    URL: /api/method/employee_self_service.mobile.ess.get_task_list_dashboard
+    Method: GET
+    Auth: Required
+
+31. get_task_status_list
+    URL: /api/method/employee_self_service.mobile.ess.get_task_status_list
+    Method: GET
+    Auth: Required
+
+32. get_transactions
+    URL: /api/method/employee_self_service.mobile.ess.get_transactions
+    Method: GET
+    Auth: Required
+
+33. get_user_list
+    URL: /api/method/employee_self_service.mobile.ess.get_user_list
+    Method: GET
+    Auth: Required
+
+34. login
+    URL: /api/method/employee_self_service.mobile.ess.login
+    Method: POST
+    Auth: Guest Allowed
+
+35. make_leave_application
+    URL: /api/method/employee_self_service.mobile.ess.make_leave_application
+    Method: POST
+    Auth: Required
+
+36. notification_list
+    URL: /api/method/employee_self_service.mobile.ess.notification_list
+    Method: GET
+    Auth: Required
+
+37. run_attendance_report
+    URL: /api/method/employee_self_service.mobile.ess.run_attendance_report
+    Method: GET
+    Auth: Required
+
+38. upcoming_activity
+    URL: /api/method/employee_self_service.mobile.ess.upcoming_activity
+    Method: GET
+    Auth: Required
+
+39. update_profile_picture
+    URL: /api/method/employee_self_service.mobile.ess.update_profile_picture
+    Method: POST
+    Auth: Required
+
+40. update_task_status
+    URL: /api/method/employee_self_service.mobile.ess.update_task_status
+    Method: POST
+    Auth: Required
+
+41. upload_documents
+    URL: /api/method/employee_self_service.mobile.ess.upload_documents
+    Method: POST
+    Auth: Required
