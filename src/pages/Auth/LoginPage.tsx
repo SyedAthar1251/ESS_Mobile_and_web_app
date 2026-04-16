@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../auth/useAuth";
@@ -6,9 +6,104 @@ import { useLanguage } from "../../i18n/LanguageContext";
 import { useTheme } from "../../store/ThemeContext";
 import LanguageSwitcher from "../../components/LanguageSwitcher";
 
+// Error type for categorized error handling
+interface ErrorInfo {
+  message: string;
+  type: 'credentials' | 'employee' | 'network' | 'server' | 'validation';
+}
+
+// Parse error message and categorize it
+const parseError = (errorMessage: string): ErrorInfo => {
+  const lowerError = errorMessage.toLowerCase();
+  
+  // Check for employee-related errors
+  if (
+    lowerError.includes('employee') && 
+    (lowerError.includes('not linked') || 
+     lowerError.includes('not found') || 
+     lowerError.includes('not associated') ||
+     lowerError.includes('no employee') ||
+     lowerError.includes('employee not found') ||
+     lowerError.includes('employee not linked'))
+  ) {
+    return {
+      message: errorMessage,
+      type: 'employee'
+    };
+  }
+  
+  // Check for invalid credentials
+  if (
+    lowerError.includes('invalid') ||
+    lowerError.includes('incorrect') ||
+    lowerError.includes('wrong') ||
+    lowerError.includes('failed') ||
+    lowerError.includes('authentication') ||
+    lowerError.includes('authorization') ||
+    lowerError.includes('password') ||
+    lowerError.includes('credential')
+  ) {
+    return {
+      message: errorMessage,
+      type: 'credentials'
+    };
+  }
+  
+  // Check for network errors
+  if (
+    lowerError.includes('timeout') ||
+    lowerError.includes('network') ||
+    lowerError.includes('connection') ||
+    lowerError.includes('ECONNABORTED') ||
+    lowerError.includes('fetch')
+  ) {
+    return {
+      message: errorMessage,
+      type: 'network'
+    };
+  }
+  
+  // Check for server errors
+  if (
+    lowerError.includes('500') ||
+    lowerError.includes('502') ||
+    lowerError.includes('503') ||
+    lowerError.includes('504') ||
+    lowerError.includes('server error') ||
+    lowerError.includes('internal error')
+  ) {
+    return {
+      message: errorMessage,
+      type: 'server'
+    };
+  }
+  
+  // Default to validation/other
+  return {
+    message: errorMessage,
+    type: 'validation'
+  };
+};
+
+// Get user-friendly error message based on error type
+const getUserFriendlyError = (errorInfo: ErrorInfo, t: (key: string) => string): string => {
+  switch (errorInfo.type) {
+    case 'credentials':
+      return t('errorInvalidCredentials');
+    case 'employee':
+      return t('errorEmployeeNotLinked');
+    case 'network':
+      return t('errorNetwork');
+    case 'server':
+      return t('errorServer');
+    default:
+      return errorInfo.message;
+  }
+};
+
 const LoginPage = () => {
   const { login, loading: authLoading, error: authError } = useAuth();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const { themeColors, theme } = useTheme();
   const navigate = useNavigate();
 
@@ -21,7 +116,7 @@ const LoginPage = () => {
     const saved = localStorage.getItem("ess_remember_me");
     return saved === "true";
   });
-  const [localError, setLocalError] = useState("");
+  const [localError, setLocalError] = useState<ErrorInfo | null>(null);
 
   // Check if light theme (for white text on certain elements)
   const isLightTheme = theme === "light";
@@ -29,20 +124,29 @@ const LoginPage = () => {
   const handleLogin = async () => {
     // Validate inputs
     if (!companyUrl.trim()) {
-      setLocalError("Please enter your company URL");
+      setLocalError({
+        message: t('errorCompanyUrlRequired'),
+        type: 'validation'
+      });
       return;
     }
     if (!userId.trim()) {
-      setLocalError("Please enter your user ID");
+      setLocalError({
+        message: t('errorUserIdRequired'),
+        type: 'validation'
+      });
       return;
     }
     if (!password.trim()) {
-      setLocalError("Please enter your password");
+      setLocalError({
+        message: t('errorPasswordRequired'),
+        type: 'validation'
+      });
       return;
     }
 
     // Clear errors
-    setLocalError("");
+    setLocalError(null);
 
     // Handle Remember Me
     if (rememberMe) {
@@ -62,11 +166,88 @@ const LoginPage = () => {
       navigate("/dashboard", { replace: true });
     } catch (err: any) {
       console.log("[LoginPage] Login failed:", err.message);
-      setLocalError(err.message);
+      // Parse and set the error with proper categorization
+      const parsedError = parseError(err.message);
+      setLocalError(parsedError);
     }
   };
 
-  const displayError = localError || authError;
+  // Get display error - combine local and auth errors
+  const getDisplayError = useCallback((): ErrorInfo | null => {
+    if (localError) return localError;
+    if (authError) return parseError(authError);
+    return null;
+  }, [localError, authError]);
+
+  const displayError = getDisplayError();
+  
+  // Get error icon based on error type
+  const getErrorIcon = (type: ErrorInfo['type']) => {
+    switch (type) {
+      case 'credentials':
+        return (
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+          </svg>
+        );
+      case 'employee':
+        return (
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+          </svg>
+        );
+      case 'network':
+        return (
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 5.636a9 9 0 010 12.728m0 0l-2.829-2.829m2.829 2.829L21 21M15.536 8.464a5 5 0 010 7.072m0 0l-2.829-2.829m-4.243 2.829a4.978 4.978 0 01-1.414-2.83m-1.414 5.658a9 9 0 01-2.167-9.238m7.824 2.167a1 1 0 111.414 1.414m-1.414-1.414L3 3m8.293 8.293l1.414 1.414" />
+          </svg>
+        );
+      case 'server':
+        return (
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+          </svg>
+        );
+      default:
+        return (
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+        );
+    }
+  };
+  
+  // Get error styling based on error type
+  const getErrorStyle = (type: ErrorInfo['type']) => {
+    switch (type) {
+      case 'credentials':
+        return 'bg-red-50 border-red-200 text-red-800';
+      case 'employee':
+        return 'bg-amber-50 border-amber-200 text-amber-800';
+      case 'network':
+        return 'bg-blue-50 border-blue-200 text-blue-800';
+      case 'server':
+        return 'bg-purple-50 border-purple-200 text-purple-800';
+      default:
+        return 'bg-red-50 border-red-200 text-red-800';
+    }
+  };
+  
+  // Get error icon styling based on error type
+  const getErrorIconStyle = (type: ErrorInfo['type']) => {
+    switch (type) {
+      case 'credentials':
+        return 'text-red-500';
+      case 'employee':
+        return 'text-amber-500';
+      case 'network':
+        return 'text-blue-500';
+      case 'server':
+        return 'text-purple-500';
+      default:
+        return 'text-red-500';
+    }
+  };
 
   const handleCreateAccount = () => {
     // Open in mobile browser
@@ -120,9 +301,53 @@ const LoginPage = () => {
 
         {/* Error Message */}
         {displayError && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg mb-4 text-sm">
-            {displayError}
-          </div>
+          <motion.div 
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className={`border rounded-xl px-4 py-3 mb-4 ${getErrorStyle(displayError.type)}`}
+          >
+            <div className="flex items-start gap-3">
+              <div className={`flex-shrink-0 mt-0.5 ${getErrorIconStyle(displayError.type)}`}>
+                {getErrorIcon(displayError.type)}
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-medium">
+                  {getUserFriendlyError(displayError, t)}
+                </p>
+                {/* Show original error for employee and server errors for debugging (optional) */}
+                {(displayError.type === 'employee' || displayError.type === 'server') && displayError.message !== getUserFriendlyError(displayError, t) && (
+                  <p className="text-xs mt-1 opacity-75">
+                    {displayError.message}
+                  </p>
+                )}
+              </div>
+              {/* Close button */}
+              <button 
+                onClick={() => setLocalError(null)}
+                className="flex-shrink-0 opacity-50 hover:opacity-100 transition-opacity"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            {/* Help text for specific error types */}
+            {displayError.type === 'credentials' && (
+              <p className="text-xs mt-2 opacity-75">
+                {t('errorCredentialsHelp')}
+              </p>
+            )}
+            {displayError.type === 'employee' && (
+              <p className="text-xs mt-2 opacity-75">
+                {t('errorEmployeeHelp')}
+              </p>
+            )}
+            {displayError.type === 'network' && (
+              <p className="text-xs mt-2 opacity-75">
+                {t('errorNetworkHelp')}
+              </p>
+            )}
+          </motion.div>
         )}
 
         {/* Tabs */}
@@ -248,7 +473,7 @@ const LoginPage = () => {
             </button>
 
             {/* Create account */}
-            <div className="text-center mt-6 text-sm">
+            {/* <div className="text-center mt-6 text-sm">
               {t("createAccount")}{" "}
               <button 
                 onClick={handleCreateAccount}
@@ -257,7 +482,7 @@ const LoginPage = () => {
               >
                 {t("createUser")}
               </button>
-            </div>
+            </div> */}
           </div>
         ) : (
           <div className="py-8">

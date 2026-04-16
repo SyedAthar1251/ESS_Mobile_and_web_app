@@ -56,6 +56,14 @@ const AttendancePage = () => {
     toDate: string;
   } | null>(null);
 
+  // Pagination state for checkins list
+  const [checkinPage, setCheckinPage] = useState(1);
+  const CHECKINS_PER_PAGE = 10;
+
+  // Pagination state for attendance list
+  const [attendancePage, setAttendancePage] = useState(1);
+  const ATTENDANCE_PER_PAGE = 10;
+
   const statusColors: Record<string, { bg: string; text: string; label: string }> = {
     IN: { bg: "bg-green-100", text: "text-green-700", label: t("checkIn") },
     OUT: { bg: "bg-blue-100", text: "text-blue-700", label: t("checkOut") },
@@ -80,7 +88,7 @@ const AttendancePage = () => {
         const data = await getEmployeeCheckinList(user.employeeId);
         // Sort checkins by time descending (newest first)
         const sortedData = [...data].sort(
-          (a, b) => new Date(b.time).getTime() - new Date(a.time).getTime()
+          (a, b) => parseDateString(b.time).getTime() - parseDateString(a.time).getTime()
         );
         setCheckinList(sortedData);
       } catch (err: any) {
@@ -92,6 +100,34 @@ const AttendancePage = () => {
     };
 
     fetchCheckinList();
+  }, [user]);
+
+  // Refresh checkin list when page becomes visible (fixes mobile app issue)
+  useEffect(() => {
+    const handleVisibilityChange = async () => {
+      if (!document.hidden && user?.employeeId) {
+        // Page became visible - fetch fresh data
+        console.log("[AttendancePage] Page became visible, refreshing data...");
+        try {
+          const data = await getEmployeeCheckinList(user.employeeId);
+          const sortedData = [...data].sort(
+            (a, b) => parseDateString(b.time).getTime() - parseDateString(a.time).getTime()
+          );
+          setCheckinList(sortedData);
+        } catch (error) {
+          console.error("[AttendancePage] Error refreshing data:", error);
+        }
+      }
+    };
+
+    // Handle both visibility change and focus events (better for mobile)
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("focus", handleVisibilityChange);
+    
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("focus", handleVisibilityChange);
+    };
   }, [user]);
 
   const handleCheckinClick = async (checkinName: string) => {
@@ -187,6 +223,11 @@ const AttendancePage = () => {
     });
   };
 
+  // Get paginated attendance list
+  const filteredAttendanceList = getFilteredAttendanceList();
+  const paginatedAttendanceList = filteredAttendanceList.slice(0, attendancePage * ATTENDANCE_PER_PAGE);
+  const hasMoreAttendance = filteredAttendanceList.length > attendancePage * ATTENDANCE_PER_PAGE;
+
   // Fetch attendance list when calendar month changes
   useEffect(() => {
     fetchAttendanceList();
@@ -196,8 +237,43 @@ const AttendancePage = () => {
     setSelectedCheckin(null);
   };
 
+  // Helper to parse date string that might be in format "YYYY-MM-DD HH:MM:SS" or ISO
+  const parseDateString = (dateStr: string): Date => {
+    if (!dateStr) return new Date();
+    // Replace space with 'T' for proper parsing
+    const normalized = dateStr.replace(' ', 'T');
+    return new Date(normalized);
+  };
+
+  // Format timestamp for display
+  const formatTimestamp = (dateStr: string) => {
+    if (!dateStr) return "N/A";
+    const date = parseDateString(dateStr);
+    return date.toLocaleString(language === "ar" ? "ar-SA" : "en-US", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit"
+    });
+  };
+
+  // Format time string (handles both "HH:MM:SS" and "YYYY-MM-DD HH:MM:SS" formats)
+  const formatTimeString = (timeStr: string | null) => {
+    if (!timeStr) return "--:--";
+    // If it contains a space, it's a full datetime, extract just the time part
+    if (timeStr.includes(' ')) {
+      return timeStr.split(' ')[1]?.substring(0, 5) || "--:--";
+    }
+    // If it contains colon, assume it's a time string
+    if (timeStr.includes(':')) {
+      return timeStr.substring(0, 5);
+    }
+    return timeStr;
+  };
+
   const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
+    const date = parseDateString(dateStr);
     if (language === "ar") {
       return toArabic(date.getDate()) + " " + date.toLocaleDateString("ar-SA", { month: "short" });
     }
@@ -206,7 +282,7 @@ const AttendancePage = () => {
 
   const formatTime = (dateStr: string) => {
     if (!dateStr) return "--:--";
-    const date = new Date(dateStr);
+    const date = parseDateString(dateStr);
     const hours = date.getHours().toString().padStart(2, "0");
     const minutes = date.getMinutes().toString().padStart(2, "0");
     const time = `${hours}:${minutes}`;
@@ -214,7 +290,7 @@ const AttendancePage = () => {
   };
 
   const formatFullDate = (dateStr: string) => {
-    const date = new Date(dateStr);
+    const date = parseDateString(dateStr);
     if (language === "ar") {
       return date.toLocaleDateString("ar-SA", { day: "numeric", month: "long", year: "numeric" });
     }
@@ -222,7 +298,7 @@ const AttendancePage = () => {
   };
 
   const getDayName = (dateStr: string) => {
-    const date = new Date(dateStr);
+    const date = parseDateString(dateStr);
     if (language === "ar") {
       return date.toLocaleDateString("ar-SA", { weekday: "long" });
     }
@@ -245,10 +321,10 @@ const AttendancePage = () => {
       .map(([date, items]) => ({
         date,
         day: getDayName(date),
-        items: items.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime()),
+        items: items.sort((a, b) => parseDateString(b.time).getTime() - parseDateString(a.time).getTime()),
         fullDate: formatFullDate(date),
       }))
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      .sort((a, b) => parseDateString(b.date).getTime() - parseDateString(a.date).getTime());
   })();
 
   // Calculate attendance stats
@@ -256,6 +332,20 @@ const AttendancePage = () => {
   const checkIns = checkinList.filter(c => c.log_type === "IN").length;
   const checkOuts = checkinList.filter(c => c.log_type === "OUT").length;
   const uniqueDays = groupedCheckins.length;
+
+  // Get paginated checkins (show last 10 by default)
+  const paginatedCheckins = checkinList.slice(0, checkinPage * CHECKINS_PER_PAGE);
+  const hasMoreCheckins = checkinList.length > checkinPage * CHECKINS_PER_PAGE;
+
+  // Reset page when checkinList changes
+  useEffect(() => {
+    setCheckinPage(1);
+  }, [checkinList.length]);
+
+  // Reset attendance page when filters or attendanceData changes
+  useEffect(() => {
+    setAttendancePage(1);
+  }, [attendanceData, appliedFilters]);
 
   // Calendar helpers (based on attendance data from API)
   const calendarYear = calendarDate.getFullYear();
@@ -643,7 +733,7 @@ const AttendancePage = () => {
             </div>
           ) : (
             <div className="divide-y divide-gray-100">
-              {getFilteredAttendanceList().map((item, index) => (
+              {paginatedAttendanceList.map((item, index) => (
                 <motion.div
                   key={item.attendance_date}
                   initial={{ opacity: 0, y: 20 }}
@@ -681,7 +771,7 @@ const AttendancePage = () => {
                       {item.in_time ? (
                         <>
                           <p className="text-sm font-medium text-gray-800">
-                            {item.in_time?.substring(0, 5)} - {item.out_time?.substring(0, 5)}
+                            {formatTimeString(item.in_time)} - {formatTimeString(item.out_time)}
                           </p>
                           <p className="text-xs text-green-600">Present</p>
                         </>
@@ -692,6 +782,30 @@ const AttendancePage = () => {
                   </div>
                 </motion.div>
               ))}
+              
+              {/* Load More Button */}
+              {hasMoreAttendance && (
+                <div className="p-4 border-t border-gray-100">
+                  <button
+                    onClick={() => setAttendancePage(prev => prev + 1)}
+                    className="w-full py-2 px-4 bg-indigo-50 text-indigo-600 font-medium rounded-xl hover:bg-indigo-100 transition-colors text-sm"
+                  >
+                    Load More ({filteredAttendanceList.length - paginatedAttendanceList.length} more)
+                  </button>
+                </div>
+              )}
+              
+              {/* View Less Button */}
+              {attendancePage > 1 && (
+                <div className="p-4 border-t border-gray-100">
+                  <button
+                    onClick={() => setAttendancePage(1)}
+                    className="w-full py-2 px-4 bg-gray-100 text-gray-600 font-medium rounded-xl hover:bg-gray-200 transition-colors text-sm"
+                  >
+                    View Less
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -709,7 +823,7 @@ const AttendancePage = () => {
             </div>
           ) : (
             <div className="divide-y divide-gray-100">
-              {checkinList.map((item, index) => (
+              {paginatedCheckins.map((item, index) => (
                 <motion.div
                   key={item.name}
                   initial={{ opacity: 0, x: -20 }}
@@ -746,6 +860,30 @@ const AttendancePage = () => {
                   </div>
                 </motion.div>
               ))}
+              
+              {/* Load More Button */}
+              {hasMoreCheckins && (
+                <div className="p-4 border-t border-gray-100">
+                  <button
+                    onClick={() => setCheckinPage(prev => prev + 1)}
+                    className="w-full py-2 px-4 bg-indigo-50 text-indigo-600 font-medium rounded-xl hover:bg-indigo-100 transition-colors text-sm"
+                  >
+                    Load More ({checkinList.length - paginatedCheckins.length} more)
+                  </button>
+                </div>
+              )}
+              
+              {/* View Less Button */}
+              {checkinPage > 1 && (
+                <div className="p-4 border-t border-gray-100">
+                  <button
+                    onClick={() => setCheckinPage(1)}
+                    className="w-full py-2 px-4 bg-gray-100 text-gray-600 font-medium rounded-xl hover:bg-gray-200 transition-colors text-sm"
+                  >
+                    View Less
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -839,8 +977,8 @@ const AttendancePage = () => {
                   <div className="pt-4 border-t border-gray-100">
                     <p className="text-xs text-gray-400 mb-2">Record Info</p>
                     <div className="space-y-1">
-                      <p className="text-xs text-gray-500">Created: {new Date(selectedCheckin.creation).toLocaleString()}</p>
-                      <p className="text-xs text-gray-500">Modified: {new Date(selectedCheckin.modified).toLocaleString()}</p>
+                      <p className="text-xs text-gray-500">Created: {formatTimestamp(selectedCheckin.creation)}</p>
+                      <p className="text-xs text-gray-500">Modified: {formatTimestamp(selectedCheckin.modified)}</p>
                     </div>
                   </div>
                 </div>
@@ -902,13 +1040,13 @@ const AttendancePage = () => {
                     <div>
                       <p className="text-xs text-gray-400">Check In</p>
                       <p className="font-medium text-gray-800">
-                        {selectedAttendanceDate.in_time ? selectedAttendanceDate.in_time.substring(0, 5) : "--:--"}
+                        {formatTimeString(selectedAttendanceDate.in_time)}
                       </p>
                     </div>
                     <div>
                       <p className="text-xs text-gray-400">Check Out</p>
                       <p className="font-medium text-gray-800">
-                        {selectedAttendanceDate.out_time ? selectedAttendanceDate.out_time.substring(0, 5) : "--:--"}
+                        {formatTimeString(selectedAttendanceDate.out_time)}
                       </p>
                     </div>
                     <div className="col-span-2">

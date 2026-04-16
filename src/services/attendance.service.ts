@@ -177,23 +177,31 @@ export const createEmployeeLog = async (
     console.log("[AttendanceService] Punch success:", response.data);
     return response.data;
   } catch (error: any) {
-    console.log("[AttendanceService] Punch error details:", {
-      status: error.response?.status,
-      message: error.response?.data?.exception || error.response?.data?.error || error.message,
-      fullError: error.response?.data,
-    });
-
-    if (error.response?.data?.exception) {
-      throw new Error(error.response.data.exception);
-    } else if (error.response?.data?.error) {
-      throw new Error(error.response.data.error);
-    } else if (error.response?.status === 401) {
-      throw new Error("Authentication failed. Please login again.");
-    } else if (error.code === "ECONNABORTED") {
-      throw new Error("Request timed out. Please try again.");
-    } else {
-      throw new Error("Failed to record checkin. Please try again.");
+    console.log("[AttendanceService] Punch error:", error);
+    
+    // Handle both axios errors (web) and native fetch errors (mobile)
+    let errorMessage = "Failed to record checkin. Please try again.";
+    
+    if (error.response) {
+      // Axios error format (web)
+      console.log("[AttendanceService] Axios error details:", {
+        status: error.response?.status,
+        data: error.response?.data,
+      });
+      if (error.response?.data?.exception) {
+        errorMessage = error.response.data.exception;
+      } else if (error.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      } else if (error.response?.status === 401) {
+        errorMessage = "Authentication failed. Please login again.";
+      }
+    } else if (error.message) {
+      // Native fetch error format (mobile)
+      console.log("[AttendanceService] Fetch error message:", error.message);
+      errorMessage = error.message;
     }
+    
+    throw new Error(errorMessage);
   }
 };
 

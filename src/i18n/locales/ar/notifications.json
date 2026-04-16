@@ -6,7 +6,9 @@
   "total": "الإجمالي",
   "alerts": "تنبيهات",
   "new": "جديد",
-  "noNotifications": "لا توجد إشعارات",
+  "noNotifications": "لا توجد إشعارات بعد",
+  "noUnreadNotifications": "لا توجد إشعارات غير مقروءة",
+  "noReadNotifications": "لا توجد إشعارات مقروءة",
   "markAllAsRead": "تحديد الكل كمقروء",
   "leaveApproved": "تمت الموافقة على الإجازة",
   "newTaskAssigned": "تم تعيين مهمة جديدة",
@@ -17,5 +19,7 @@
   "assignedToProject": "لقد تم إسنادك إلى",
   "salaryForMonth": "تم إيداع راتبك لشهر",
   "rememberToCheckin": "يرجى تسجيل الحضور اليوم قبل الساعة",
-  "expenseClaimRejected": "تم رفض مطالبة المصروفات الخاصة بك لـ"
+  "expenseClaimRejected": "تم رفض مطالبة المصروفات الخاصة بك لـ",
+  "error": "خطأ",
+  "retry": "إعادة المحاولة"
 }

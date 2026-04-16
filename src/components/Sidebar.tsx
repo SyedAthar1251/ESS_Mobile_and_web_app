@@ -143,13 +143,12 @@ const Sidebar = ({ isOpen, onClose, isMinimized = false, onToggleMinimize }: Pro
   };
 
   // Navigation tabs with clear icons - Phase 1 Focus
-  // Phase 1: Dashboard, Attendance, Notifications (Core AlphaX)
+  // Phase 1: Dashboard, Attendance (Core AlphaX)
   // Phase 2: Leave, Salary, Expense, Tasks, Documents, Reports (Advanced AlphaX)
   // Phase 3: Travel, Loan (Manager Features)
   const tabs = [
     { to: "/dashboard", label: isRTL ? "الرئيسية" : "Dashboard", icon: Icons.dashboard, phase: 1 },
     { to: "/attendance", label: isRTL ? "الحضور والانصراف" : "Attendance", icon: Icons.attendance, phase: 1 },
-    { to: "/notifications", label: isRTL ? "الإشعارات" : "Notifications", icon: Icons.notifications, phase: 1 },
     { to: "/profile", label: isRTL ? "الملف الشخصي" : "Profile", icon: Icons.profile, phase: 1 },
     { to: "/leave", label: isRTL ? "الإجازات" : "Leave", icon: Icons.leave, phase: 2 },
     { to: "/holiday", label: isRTL ? "العطلات" : "Holiday", icon: Icons.holiday, phase: 2 },

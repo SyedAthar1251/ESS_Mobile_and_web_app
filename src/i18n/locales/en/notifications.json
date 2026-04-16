@@ -6,7 +6,9 @@
   "total": "Total",
   "alerts": "Alerts",
   "new": "new",
-  "noNotifications": "No notifications",
+  "noNotifications": "No notifications yet",
+  "noUnreadNotifications": "No unread notifications",
+  "noReadNotifications": "No read notifications",
   "markAllAsRead": "Mark All as Read",
   "leaveApproved": "Leave Approved",
   "newTaskAssigned": "New Task Assigned",
@@ -17,5 +19,7 @@
   "assignedToProject": "You have been assigned to",
   "salaryForMonth": "Your salary for January has been credited to your account.",
   "rememberToCheckin": "Please remember to check in today before",
-  "expenseClaimRejected": "Your expense claim for has been rejected."
+  "expenseClaimRejected": "Your expense claim for has been rejected.",
+  "error": "Error",
+  "retry": "Retry"
 }

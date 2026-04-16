@@ -10,7 +10,7 @@ const axiosApi = axios.create({
 const api = {
   async get<T>(url: string, options?: any): Promise<{ data: T; status: number }> {
     if (Capacitor.isNativePlatform()) {
-      // Use native fetch for mobile - more reliable for CORS
+      // Use native fetch for mobile - simpler and more reliable
       try {
         const headers: Record<string, string> = {};
         if (options?.headers) {
@@ -32,6 +32,7 @@ const api = {
         }
         return { data, status: response.status };
       } catch (error: any) {
+        console.error("[API] GET Error:", error);
         throw new Error(`Network error: ${error.message}`);
       }
     } else {
@@ -45,20 +46,48 @@ const api = {
     if (Capacitor.isNativePlatform()) {
       // Use native fetch for mobile
       try {
-        const headers: Record<string, string> = {
-          'Content-Type': 'application/json',
-        };
+        const headers: Record<string, string> = {};
         if (options?.headers) {
           Object.entries(options.headers).forEach(([key, value]) => {
             headers[key] = value as string;
           });
         }
         
+        // Determine body content - don't stringify form-urlencoded data
+        let body: string | undefined;
+        const contentType = headers['Content-Type'] || headers['content-type'] || '';
+        
+        if (contentType.includes('application/x-www-form-urlencoded')) {
+          // Don't stringify form data - send as-is
+          body = data;
+        } else {
+          // Default to JSON
+          body = data ? JSON.stringify(data) : undefined;
+          if (!headers['Content-Type']) {
+            headers['Content-Type'] = 'application/json';
+          }
+        }
+        
         const response = await fetch(url, {
           method: 'POST',
           headers,
-          body: JSON.stringify(data),
+          body,
         });
+        
+        // Check for HTTP errors
+        if (!response.ok) {
+          let errorData: any;
+          try {
+            errorData = await response.json();
+          } catch {
+            errorData = { message: response.statusText };
+          }
+          console.error("[API] HTTP Error:", response.status, errorData);
+          
+          // Throw error with server message if available
+          const errorMessage = errorData?.exception || errorData?.error || errorData?.message || `HTTP Error: ${response.status}`;
+          throw new Error(errorMessage);
+        }
         
         let responseData: T;
         if (options?.responseType === 'blob') {
@@ -68,6 +97,11 @@ const api = {
         }
         return { data: responseData, status: response.status };
       } catch (error: any) {
+        // Re-throw if it's already an Error object from above
+        if (error instanceof Error && error.message.includes('HTTP Error')) {
+          throw error;
+        }
+        console.error("[API] POST Error:", error);
         throw new Error(`Network error: ${error.message}`);
       }
     } else {

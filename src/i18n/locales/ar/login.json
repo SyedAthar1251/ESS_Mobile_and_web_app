@@ -9,5 +9,16 @@
   "forgotPassword": "نسيت كلمة المرور؟",
   "login": "تسجيل الدخول",
   "createAccount": "ليس لديك حساب؟",
-  "createUser": "إنشاء حساب"
+  "createUser": "إنشاء حساب",
+  
+  "errorCompanyUrlRequired": "الرجاء إدخال رابط الشركة",
+  "errorUserIdRequired": "الرجاء إدخال رقم الموظف",
+  "errorPasswordRequired": "الرجاء إدخال كلمة المرور",
+  "errorInvalidCredentials": "بيانات الاعتماد غير صحيحة. يرجى التحقق من رقم الموظف وكلمة المرور.",
+  "errorEmployeeNotLinked": "السجل الوظيفي غير موجود. يرجى الاتصال بمسؤول الموارد البشرية.",
+  "errorNetwork": "خطأ في الشبكة. يرجى التحقق من اتصالك بالإنترنت.",
+  "errorServer": "خطأ في الخادم. يرجى المحاولة مرة أخرى لاحقاً.",
+  "errorCredentialsHelp": "تأكد من صحة رقم الموظف وكلمة المرور.",
+  "errorEmployeeHelp": "قد لا يكون حسابك مرتبطاً بسجل موظف. يرجى الاتصال بمسؤول الموارد البشرية.",
+  "errorNetworkHelp": "تحقق من اتصالك بالإنترنت وحاول مرة أخرى."
 }

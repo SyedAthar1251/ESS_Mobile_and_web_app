@@ -1,6 +1,8 @@
-import { motion } from "framer-motion";
-import { useState, useRef, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import { Capacitor } from "@capacitor/core";
+import { Geolocation } from "@capacitor/geolocation";
 import useLiveClock from "../../utils/useLiveClock";
 import { useLanguage } from "../../i18n/LanguageContext";
 import { useAuth } from "../../auth/useAuth";
@@ -8,6 +10,7 @@ import { useTheme } from "../../store/ThemeContext";
 import { createEmployeeLog, getAttendanceDetailsDashboard, getEmployeeCheckinList, CheckinListItem } from "../../services/attendance.service";
 import { getDashboard, DashboardData } from "../../services/dashboard.service";
 import PunchSlider from "../../components/PunchSlider";
+import ComingSoon from "../../components/ComingSoon";
 
 const DashboardPage = () => {
   const { language, t } = useLanguage();
@@ -39,13 +42,164 @@ const DashboardPage = () => {
     return `${hours}:${minutes}`;
   });
   const [punchOutTime, setPunchOutTime] = useState<string | null>(null);
+  const [lastPunchOut, setLastPunchOut] = useState<{ time: string; date: string } | null>(null);
   const [showCamera, setShowCamera] = useState(false);
+  const [showDevModal, setShowDevModal] = useState(false);
+  
+  // Simple notification state
+  const [notification, setNotification] = useState<{
+    message: string;
+    type: 'success' | 'error' | 'warning' | 'info';
+    visible: boolean;
+  }>({ message: '', type: 'success', visible: false });
+  
+  // Auto-hide notification after 3 seconds
+  useEffect(() => {
+    if (notification.visible) {
+      const timer = setTimeout(() => {
+        setNotification(prev => ({ ...prev, visible: false }));
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [notification.visible]);
+  
+  const showNotification = (message: string, type: 'success' | 'error' | 'warning' | 'info' = 'success') => {
+    setNotification({ message, type, visible: true });
+  };
+  
+  // Confirmation modal state
+  const [confirmModal, setConfirmModal] = useState<{
+    show: boolean;
+    message: string;
+    onConfirm: () => void;
+  }>({ show: false, message: '', onConfirm: () => {} });
   const [isLoading, setIsLoading] = useState(false);
-  const [workDuration, setWorkDuration] = useState<string>("");
-  const [finalDuration, setFinalDuration] = useState<string>("");
   const [currentLocation, setCurrentLocation] = useState<string>("");
+  const [locationDenied, setLocationDenied] = useState<boolean>(false);
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [dashboardLoading, setDashboardLoading] = useState(true);
+
+  // Helper to get today's date string in local time (YYYY-MM-DD)
+  const getTodayString = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  // Check if a date is today
+  // Helper to check if a date string is today - handles both T and space format
+  const isToday = (dateString: string) => {
+    if (!dateString) return false;
+    const datePart = dateString.includes('T') 
+      ? dateString.split('T')[0] 
+      : dateString.split(' ')[0];
+    return datePart === getTodayString();
+  };
+
+  // Daily punch restriction state - initialize from localStorage
+  const [hasPunchedInToday, setHasPunchedInToday] = useState<boolean>(() => {
+    const savedDate = localStorage.getItem("ess_punch_date");
+    const today = getTodayString();
+    // Only restore if saved date is today
+    return savedDate === today ? localStorage.getItem("ess_punched_in_today") === "true" : false;
+  });
+  const [hasPunchedOutToday, setHasPunchedOutToday] = useState<boolean>(() => {
+    const savedDate = localStorage.getItem("ess_punch_date");
+    const today = getTodayString();
+    return savedDate === today ? localStorage.getItem("ess_punched_out_today") === "true" : false;
+  });
+  const [completedToday, setCompletedToday] = useState<boolean>(() => {
+    const savedDate = localStorage.getItem("ess_punch_date");
+    const today = getTodayString();
+    return savedDate === today ? localStorage.getItem("ess_completed_today") === "true" : false;
+  });
+
+  // Fetch today's attendance from API on mount to get accurate state
+  const fetchTodayAttendance = useCallback(async () => {
+    if (!user?.employeeId) return;
+    
+    try {
+      console.log("[DashboardPage] Fetching today's attendance from API...");
+      const checkins = await getEmployeeCheckinList(user.employeeId);
+      
+      // Get today's date string
+      const todayStr = getTodayString();
+      
+      console.log("[DashboardPage] Today's date:", todayStr);
+      console.log("[DashboardPage] Raw checkins:", checkins);
+      
+      // Filter checkins for today only
+      const todayCheckins = checkins?.filter(checkin => {
+        if (!checkin.time) return false;
+        const datePart = checkin.time.includes('T') 
+          ? checkin.time.split('T')[0] 
+          : checkin.time.split(' ')[0];
+        return datePart === todayStr;
+      }) || [];
+      
+      console.log("[DashboardPage] Today's checkins:", todayCheckins);
+      
+      // Check if user has punched in/out today
+      const punchInToday = todayCheckins.find(c => c.log_type?.toUpperCase() === "IN");
+      const punchOutToday = todayCheckins.find(c => c.log_type?.toUpperCase() === "OUT");
+      
+      // Button Logic: isPunchedIn = true means show Punch Out (red)
+      // isPunchedIn = false means show Punch In (green)
+      // If has OUT → show Punch In (green) = isPunchedIn = false
+      // If has IN but no OUT → show Punch Out (red) = isPunchedIn = true
+      
+      const isPunchedIn = !!punchInToday && !punchOutToday;
+      
+      console.log("[DashboardPage] punchInToday:", punchInToday, "punchOutToday:", punchOutToday);
+      console.log("[DashboardPage] isPunchedIn:", isPunchedIn);
+      
+      // Set button state - use API only
+      setIsPunchedIn(isPunchedIn);
+      setHasPunchedInToday(!!punchInToday);
+      setHasPunchedOutToday(!!punchOutToday);
+      setCompletedToday(!!punchOutToday);
+      
+      // Set punch in time if punched in
+      if (punchInToday && punchInToday.time && !punchOutToday) {
+        const punchTime = new Date(punchInToday.time);
+        setPunchInTime(punchTime);
+        setPunchInTimeStr(formatTime(punchTime));
+        localStorage.setItem("ess_punch_state", "true");
+        localStorage.setItem("ess_punch_time", punchInToday.time);
+      } else {
+        setPunchInTime(null);
+        setPunchInTimeStr(null);
+        localStorage.setItem("ess_punch_state", "false");
+        localStorage.removeItem("ess_punch_time");
+      }
+      
+      // Set punch out time if punched out
+      if (punchOutToday && punchOutToday.time) {
+        setPunchOutTime(formatTime(new Date(punchOutToday.time)));
+        setLastPunchOut(formatDateTime(new Date(punchOutToday.time)));
+      } else {
+        setPunchOutTime(null);
+      }
+      
+      // Find last punch out from any previous day
+      const allCheckinsSorted = [...(checkins || [])].sort(
+        (a, b) => new Date(b.time).getTime() - new Date(a.time).getTime()
+      );
+      const lastPunchOutRecord = allCheckinsSorted.find(c => c.log_type?.toUpperCase() === "OUT" && c.time);
+      if (lastPunchOutRecord && lastPunchOutRecord.time && !punchOutToday) {
+        setLastPunchOut(formatDateTime(new Date(lastPunchOutRecord.time)));
+      }
+      
+      // Save to localStorage
+      saveDailyPunchState(!!punchInToday, !!punchOutToday, !!punchOutToday);
+      
+      console.log("[DashboardPage] Today's attendance - isPunchedIn:", isPunchedIn);
+    } catch (error) {
+      console.error("[DashboardPage] Failed to fetch today's attendance:", error);
+    }
+  }, [user]);
 
   // Fetch dashboard data on mount
   useEffect(() => {
@@ -55,55 +209,6 @@ const DashboardPage = () => {
         const data = await getDashboard();
         console.log("[DashboardPage] Dashboard data:", data);
         setDashboardData(data);
-
-        // Fetch checkins list to determine punch state
-        if (user?.employeeId) {
-          try {
-            const checkins = await getEmployeeCheckinList(user.employeeId);
-            if (checkins && checkins.length > 0) {
-              // Sort by time descending to get the latest
-              const sortedCheckins = [...checkins].sort(
-                (a, b) => new Date(b.time).getTime() - new Date(a.time).getTime()
-              );
-              const latestCheckin = sortedCheckins[0];
-              
-              if (latestCheckin.log_type === "IN") {
-                // User punched in but not out yet - show punch out
-                setIsPunchedIn(true);
-                const punchInDate = new Date(latestCheckin.time);
-                setPunchInTime(punchInDate);
-                setPunchInTimeStr(formatTime(punchInDate));
-                localStorage.setItem("ess_punch_state", "true");
-                localStorage.setItem("ess_punch_time", latestCheckin.time);
-              } else {
-                // User punched out - show punch in
-                setIsPunchedIn(false);
-                setPunchInTime(null);
-                setPunchInTimeStr(null);
-                setPunchOutTime(formatTime(new Date(latestCheckin.time)));
-                localStorage.setItem("ess_punch_state", "false");
-                localStorage.removeItem("ess_punch_time");
-              }
-            } else {
-              // No checkins yet - show punch in
-              setIsPunchedIn(false);
-              localStorage.setItem("ess_punch_state", "false");
-            }
-          } catch (checkinError) {
-            console.error("[DashboardPage] Failed to fetch checkins:", checkinError);
-            // Fall back to dashboard API data
-            if (data.last_log_type === "IN") {
-              setIsPunchedIn(true);
-              if (data.last_log_time) {
-                const punchInDate = new Date(data.last_log_time);
-                setPunchInTime(punchInDate);
-                setPunchInTimeStr(formatTime(punchInDate));
-              }
-            } else {
-              setIsPunchedIn(false);
-            }
-          }
-        }
       } catch (error: any) {
         console.error("[DashboardPage] Failed to fetch dashboard:", error);
       } finally {
@@ -112,28 +217,30 @@ const DashboardPage = () => {
     };
 
     fetchDashboard();
+    // Also fetch today's attendance to get accurate punch state
+    fetchTodayAttendance();
   }, [user]);
 
-  // Live timer effect
+  // Refresh dashboard data when page becomes visible (fixes mobile app issue)
   useEffect(() => {
-    let interval: NodeJS.Timeout;
-    
-    if (isPunchedIn && punchInTime) {
-      interval = setInterval(() => {
-        const now = new Date();
-        const diff = now.getTime() - punchInTime.getTime();
-        const hours = Math.floor(diff / (1000 * 60 * 60));
-        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-        setWorkDuration(`${hours}h ${minutes}m`);
-      }, 1000);
-    } else {
-      setWorkDuration("");
-    }
-
-    return () => {
-      if (interval) clearInterval(interval);
+    const handleVisibilityChange = () => {
+      if (!document.hidden && user?.employeeId) {
+        // Page became visible - ALWAYS fetch fresh data from API
+        // This ensures we get the latest state even if records were deleted from backend
+        console.log("[DashboardPage] Page became visible, fetching fresh data from API...");
+        fetchTodayAttendance();
+      }
     };
-  }, [isPunchedIn, punchInTime]);
+
+    // Handle both visibility change and focus events (better for mobile)
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("focus", handleVisibilityChange);
+    
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("focus", handleVisibilityChange);
+    };
+  }, [user, fetchTodayAttendance]);
 
   // Save punch state to localStorage when it changes
   useEffect(() => {
@@ -151,11 +258,17 @@ const DashboardPage = () => {
       navigator.geolocation.getCurrentPosition(
         (position) => {
           setCurrentLocation(`${position.coords.latitude.toFixed(4)}, ${position.coords.longitude.toFixed(4)}`);
+          setLocationDenied(false);
         },
-        () => {
+        (error) => {
+          console.error("[DashboardPage] Location error:", error);
           setCurrentLocation("Location unavailable");
+          setLocationDenied(true);
         }
       );
+    } else {
+      setCurrentLocation("Location unavailable");
+      setLocationDenied(true);
     }
   }, []);
 
@@ -166,16 +279,155 @@ const DashboardPage = () => {
     });
   };
 
+  const formatDateTime = (date: Date) => {
+    const time = date.toLocaleTimeString(language === "ar" ? "ar-SA" : "en-US", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+    const dateStr = date.toLocaleDateString(language === "ar" ? "ar-SA" : "en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+    return { time, date: dateStr };
+  };
+
+  // Save daily punch state to localStorage
+  const saveDailyPunchState = (punchedIn: boolean, punchedOut: boolean, completed: boolean) => {
+    const today = getTodayString();
+    localStorage.setItem("ess_punch_date", today);
+    localStorage.setItem("ess_punched_in_today", punchedIn ? "true" : "false");
+    localStorage.setItem("ess_punched_out_today", punchedOut ? "true" : "false");
+    localStorage.setItem("ess_completed_today", completed ? "true" : "false");
+  };
+
+  // Separate function to handle punch out after confirmation
+  const performPunchOut = async () => {
+    setIsLoading(true);
+    try {
+      // Get location for mobile
+      let locationString = currentLocation;
+      let mobileLocationError = false;
+
+      if (Capacitor.isNativePlatform()) {
+        try {
+          console.log("[DashboardPage] Getting location for punch out...");
+          const position = await Geolocation.getCurrentPosition({
+            enableHighAccuracy: true,
+            timeout: 10000,
+          });
+          
+          const { latitude, longitude } = position.coords;
+          locationString = `${latitude},${longitude}`;
+          console.log("[DashboardPage] Got location for punch out:", locationString);
+          setCurrentLocation(locationString);
+          setLocationDenied(false);
+        } catch (locationError: any) {
+          console.error("[DashboardPage] Location error for punch out:", locationError);
+          mobileLocationError = true;
+        }
+      }
+
+      // Validate location
+      if (!locationString || locationString === "Location unavailable" || locationDenied || mobileLocationError) {
+        setIsLoading(false);
+        showNotification("Location access is required for attendance. Please enable location permission and try again.", "error");
+        return;
+      }
+
+      console.log("[DashboardPage] Punch OUT action, Location:", locationString);
+
+      // Call the API for punch out
+      const response = await createEmployeeLog("OUT", locationString);
+      
+      console.log("[DashboardPage] Punch Out success:", response);
+
+      // Punch Out successful
+      const now = new Date();
+      setPunchOutTime(formatTime(now));
+      setLastPunchOut(formatDateTime(now));
+      setIsPunchedIn(false);
+      setHasPunchedOutToday(true);
+      setCompletedToday(true);
+      
+      // Save to localStorage
+      saveDailyPunchState(true, true, true);
+      
+      // Show success message
+      showNotification("Punch Out recorded successfully!", "success");
+    } catch (error: any) {
+      console.error("[DashboardPage] Punch Out error:", error);
+      showNotification(error.message || "Failed to record punch out. Please try again.", "error");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handlePunch = async () => {
+    // Check if user has already completed their attendance for today
+    if (completedToday) {
+      showNotification("You have already completed your attendance for today.", "error");
+      return;
+    }
+    
+    // Check if user has already punched in today (prevent duplicate punch in)
+    if (!isPunchedIn && hasPunchedInToday) {
+      showNotification("You have already punched in today.", "error");
+      return;
+    }
+    
+    // For punch out, show confirmation modal
+    if (isPunchedIn) {
+      setConfirmModal({
+        show: true,
+        message: "Do you want to checkout?\n\nNote: Once you checkout, you will not be able to checkin again today. If you need to checkin again, please contact your HR administrator.",
+        onConfirm: () => {
+          setConfirmModal({ show: false, message: '', onConfirm: () => {} });
+          performPunchOut();
+        }
+      });
+      return;
+    }
+    
     setIsLoading(true);
     try {
       // Determine the log type based on current state
       const logType = isPunchedIn ? "OUT" : "IN";
       
-      console.log("[DashboardPage] Punch action:", logType, "Location:", currentLocation);
+      // Get location for mobile
+      let locationString = currentLocation;
+      let mobileLocationError = false;
+      
+      if (Capacitor.isNativePlatform()) {
+        try {
+          console.log("[DashboardPage] Getting location...");
+          const position = await Geolocation.getCurrentPosition({
+            enableHighAccuracy: true,
+            timeout: 10000,
+          });
+          
+          const { latitude, longitude } = position.coords;
+          locationString = `${latitude},${longitude}`;
+          console.log("[DashboardPage] Got location:", locationString);
+          setCurrentLocation(locationString);
+          setLocationDenied(false);
+        } catch (locationError: any) {
+          console.error("[DashboardPage] Location error:", locationError);
+          mobileLocationError = true;
+        }
+      }
+      
+      // Validate location - check if location is available
+      if (!locationString || locationString === "Location unavailable" || locationDenied || mobileLocationError) {
+        setIsLoading(false);
+        showNotification("Location access is required for attendance. Please enable location permission and try again.", "error");
+        return;
+      }
+      
+      console.log("[DashboardPage] Punch action:", logType, "Location:", locationString);
       
       // Call the actual API
-      const response = await createEmployeeLog(logType, currentLocation);
+      const response = await createEmployeeLog(logType, locationString);
       
       console.log("[DashboardPage] Punch success:", response);
       
@@ -185,85 +437,39 @@ const DashboardPage = () => {
         setPunchInTime(now);
         setPunchInTimeStr(formatTime(now));
         setIsPunchedIn(true);
-        setFinalDuration("");
+        setHasPunchedInToday(true);
+        
+        // Save to localStorage
+        saveDailyPunchState(true, false, false);
         
         // Show success message
-        alert("Punch In recorded successfully!");
+        showNotification("Punch In recorded successfully!", "success");
       } else {
         // Punch Out successful
         const now = new Date();
-        const diff = now.getTime() - (punchInTime?.getTime() || now.getTime());
-        const hours = Math.floor(diff / (1000 * 60 * 60));
-        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-        setFinalDuration(`${hours}h ${minutes}m`);
         setPunchOutTime(formatTime(now));
         setIsPunchedIn(false);
+        setHasPunchedOutToday(true);
+        setCompletedToday(true);
+        
+        // Save to localStorage
+        saveDailyPunchState(true, true, true);
         
         // Show success message
-        alert("Punch Out recorded successfully!");
+        showNotification("Punch Out recorded successfully!", "success");
       }
     } catch (error: any) {
       console.error("[DashboardPage] Punch error:", error);
-      alert(error.message || "Failed to record attendance. Please try again.");
+      showNotification(error.message || "Failed to record attendance. Please try again.", "error");
     } finally {
       setIsLoading(false);
     }
   };
 
   // Handle face biometric click
-  const handleFaceBiometric = async () => {
-    setShowCamera(true);
-    setIsLoading(true);
-
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: 'user' } 
-      });
-      
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        
-        // Get the current punch state before stopping the stream
-        const currentLogType = isPunchedIn ? "OUT" : "IN";
-        
-        // Stop the camera stream
-        stream.getTracks().forEach(track => track.stop());
-        setShowCamera(false);
-        
-        console.log("[DashboardPage] Face biometric punch:", currentLogType, "Location:", currentLocation);
-        
-        // Call the actual API
-        const response = await createEmployeeLog(currentLogType, currentLocation);
-        console.log("[DashboardPage] Face biometric punch success:", response);
-        
-        if (!isPunchedIn) {
-          // Punch In successful
-          const now = new Date();
-          setPunchInTime(now);
-          setPunchInTimeStr(formatTime(now));
-          setIsPunchedIn(true);
-          setFinalDuration("");
-          alert("Punch In recorded successfully!");
-        } else {
-          // Punch Out successful
-          const now = new Date();
-          const diff = now.getTime() - (punchInTime?.getTime() || now.getTime());
-          const hours = Math.floor(diff / (1000 * 60 * 60));
-          const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-          setFinalDuration(`${hours}h ${minutes}m`);
-          setPunchOutTime(formatTime(now));
-          setIsPunchedIn(false);
-          alert("Punch Out recorded successfully!");
-        }
-      }
-    } catch (err: any) {
-      console.error("[DashboardPage] Face biometric error:", err);
-      setShowCamera(false);
-      // Fall back to slider punch if biometric fails
-      alert(err.message || "Face recognition failed. Please use the slider to punch.");
-    } finally {
-      setIsLoading(false);
-    }
+  const handleFaceBiometric = () => {
+    // Show development in progress message
+    setShowDevModal(true);
   };
 
   const getGreeting = () => {
@@ -302,7 +508,7 @@ const DashboardPage = () => {
   ];
 
   // Location status
-  const locationStatus = currentLocation ? "Location tracked" : "Getting location...";
+  const locationStatus = currentLocation || (navigator.geolocation ? "Getting location..." : "Location unavailable");
 
   // Recent activity
   const recentActivity = [
@@ -319,6 +525,91 @@ const DashboardPage = () => {
 
   return (
     <div className="space-y-6 pb-20">
+      {/* Custom Notification Toast */}
+      {notification.visible && (
+        <motion.div
+          initial={{ opacity: 0, y: -50 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -50 }}
+          className={`fixed top-4 left-1/2 transform -translate-x-1/2 z-50 px-6 py-3 rounded-xl shadow-lg flex items-center gap-3 ${
+            notification.type === 'success' ? 'bg-green-50 border border-green-200' :
+            notification.type === 'error' ? 'bg-red-50 border border-red-200' :
+            notification.type === 'warning' ? 'bg-yellow-50 border border-yellow-200' :
+            'bg-blue-50 border border-blue-200'
+          }`}
+        >
+          {notification.type === 'success' && (
+            <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+          )}
+          {notification.type === 'error' && (
+            <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          )}
+          {notification.type === 'warning' && (
+            <svg className="w-5 h-5 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+          )}
+          {notification.type === 'info' && (
+            <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          )}
+          <span className={`text-sm font-medium ${
+            notification.type === 'success' ? 'text-green-800' :
+            notification.type === 'error' ? 'text-red-800' :
+            notification.type === 'warning' ? 'text-yellow-800' :
+            'text-blue-800'
+          }`}>
+            {notification.message}
+          </span>
+        </motion.div>
+      )}
+
+      {/* Confirmation Modal */}
+      {confirmModal.show && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="absolute inset-0 bg-black/50"
+            onClick={() => setConfirmModal({ show: false, message: '', onConfirm: () => {} })}
+          />
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="relative bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full"
+          >
+            <div className="flex items-center justify-center w-12 h-12 rounded-full bg-orange-100 mx-auto mb-4">
+              <svg className="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
+            <h3 className="text-lg font-semibold text-center text-gray-800 mb-2">Confirm Check Out</h3>
+            <p className="text-gray-600 text-center text-sm mb-6 whitespace-pre-line">
+              {confirmModal.message}
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setConfirmModal({ show: false, message: '', onConfirm: () => {} })}
+                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmModal.onConfirm}
+                className="flex-1 px-4 py-2 bg-orange-500 text-white rounded-xl font-medium hover:bg-orange-600 transition-colors"
+              >
+                Check Out
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
       {/* Camera Overlay */}
       {showCamera && (
         <div className="fixed inset-0 z-50 bg-black flex flex-col items-center justify-center">
@@ -348,36 +639,26 @@ const DashboardPage = () => {
           <p className="text-gray-500 text-xs mt-1">{new Date().toLocaleDateString(language === "ar" ? "ar-SA" : "en-US", { weekday: 'long', month: 'long', day: 'numeric' })}</p>
         </div>
 
-        {/* Punch In/Out Times - Only show when recorded */}
-        {(punchInTimeStr || punchOutTime) && (
+        {/* Punch In/Out Times - Show only when punched in but not yet punched out */}
+        {isPunchedIn && punchInTimeStr && (
           <div className="flex gap-4 mb-3 text-xs">
-            {punchInTimeStr && (
-              <div className="flex items-center gap-1">
-                <span className="text-green-600">✓</span>
-                <span className="text-gray-500">In:</span>
-                <span className="font-medium text-gray-700">{punchInTimeStr}</span>
-              </div>
-            )}
-            {punchOutTime && (
-              <div className="flex items-center gap-1">
-                <span className="text-red-600">✓</span>
-                <span className="text-gray-500">Out:</span>
-                <span className="font-medium text-gray-700">{punchOutTime}</span>
-              </div>
-            )}
+            <div className="flex items-center gap-1">
+              <span className="text-green-600">✓</span>
+              <span className="text-gray-500">In:</span>
+              <span className="font-medium text-gray-700">{punchInTimeStr}</span>
+            </div>
           </div>
         )}
 
-        {/* Working Hours - Show when punched in or after punch out */}
-        {(isPunchedIn || finalDuration) && (workDuration || finalDuration) && (
-          <motion.div 
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-3 text-xs"
-          >
-            <span className="text-gray-500">Duration: </span>
-            <span className="font-bold text-indigo-600">{isPunchedIn ? workDuration : finalDuration}</span>
-          </motion.div>
+        {/* Last Punch Out - Always show when available */}
+        {lastPunchOut && (
+          <div className="mb-2 text-xs">
+            <div className="text-gray-500">
+              <span>Last Punch Out: </span>
+              <span className="font-medium text-gray-700">{lastPunchOut.time}</span>
+              <span className="text-gray-400"> ({lastPunchOut.date})</span>
+            </div>
+          </div>
         )}
 
         {/* Buttons */}
@@ -388,13 +669,19 @@ const DashboardPage = () => {
               isPunchedIn={isPunchedIn}
               isLoading={isLoading}
               onPunch={handlePunch}
+              disabled={completedToday}
             />
           </div>
           
           <button
             onClick={handleFaceBiometric}
-            className="flex-shrink-0 flex items-center justify-center w-12 h-12 rounded-2xl bg-transparent border-2 border-gray-300 shadow-lg hover:border-gray-400 transition-all hover:scale-105"
-            title={t("faceScan")}
+            className={`flex-shrink-0 flex items-center justify-center w-12 h-12 rounded-2xl bg-transparent border-2 shadow-lg transition-all ${
+              completedToday 
+                ? 'border-gray-200 cursor-not-allowed opacity-50' 
+                : 'border-gray-300 hover:border-gray-400 hover:scale-105'
+            }`}
+            title={completedToday ? "Attendance completed" : t("faceScan")}
+            disabled={completedToday}
           >
             <img 
               src="/icon/face-recognition_8337701.png" 
@@ -429,6 +716,64 @@ const DashboardPage = () => {
           )}
         </div>
       </motion.div>
+
+      {/* Face Biometric Modal */}
+      {showDevModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          {/* Backdrop */}
+          <div 
+            className="absolute inset-0 bg-black/50"
+            onClick={() => setShowDevModal(false)}
+          />
+          {/* Modal Content */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="relative bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full mx-4 text-center border-2"
+            style={{ borderColor: themeColors.primary }}
+          >
+            {/* Close Button */}
+            <button
+              onClick={() => setShowDevModal(false)}
+              className={`absolute top-3 ${language === "ar" ? "left-3" : "right-3"} text-gray-400 hover:text-gray-600 p-1`}
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+            
+            {/* Title */}
+            <div 
+              className="text-sm font-medium mb-3 pb-2 border-b"
+              style={{ color: themeColors.textSecondary, borderColor: themeColors.primary + '30' }}
+            >
+              {language === "ar" ? "المصادقة بالوجه" : "Face Biometric"}
+            </div>
+            
+            {/* Coming Soon Icon */}
+            <div className="flex justify-center mb-4">
+              <img 
+                src="/icon/comingsoon.png" 
+                alt="Coming Soon" 
+                className="w-24 h-24 object-contain"
+              />
+            </div>
+            
+            {/* Message */}
+            <h2 
+              className="text-xl font-bold mb-2"
+              style={{ color: themeColors.text }}
+            >
+              {language === "ar" ? "قريباً" : "Coming Soon"}
+            </h2>
+            <p className="text-sm" style={{ color: themeColors.textSecondary }}>
+              {language === "ar" 
+                ? "ستكون هذه الميزة متاحة في التحديث القادم" 
+                : "This feature will be available in next update."}
+            </p>
+          </motion.div>
+        </div>
+      )}
 
       {/* Quick Access - 8 modules */}
       <div className="px-4">

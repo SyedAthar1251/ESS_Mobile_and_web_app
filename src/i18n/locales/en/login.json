@@ -9,5 +9,16 @@
   "forgotPassword": "Forgot Password?",
   "login": "Login",
   "createAccount": "Don't have an account?",
-  "createUser": "Create User"
+  "createUser": "Create User",
+  
+  "errorCompanyUrlRequired": "Please enter your company URL",
+  "errorUserIdRequired": "Please enter your user ID",
+  "errorPasswordRequired": "Please enter your password",
+  "errorInvalidCredentials": "Invalid credentials. Please check your user ID and password.",
+  "errorEmployeeNotLinked": "Employee record not found. Please contact your HR administrator.",
+  "errorNetwork": "Network error. Please check your internet connection.",
+  "errorServer": "Server error. Please try again later.",
+  "errorCredentialsHelp": "Make sure your Employee ID and password are correct.",
+  "errorEmployeeHelp": "Your account may not be linked to an employee record. Please contact your HR administrator.",
+  "errorNetworkHelp": "Check your internet connection and try again."
 }

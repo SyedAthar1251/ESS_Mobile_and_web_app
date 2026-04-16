@@ -4,27 +4,26 @@ interface PunchSliderProps {
   isPunchedIn: boolean;
   isLoading: boolean;
   onPunch: () => Promise<void>;
+  disabled?: boolean;
 }
 
-export default function PunchSlider({ isPunchedIn, isLoading, onPunch }: PunchSliderProps) {
+export default function PunchSlider({ isPunchedIn, isLoading, onPunch, disabled = false }: PunchSliderProps) {
   const [position, setPosition] = useState(0);
   const [dragging, setDragging] = useState(false);
   const [containerWidth, setContainerWidth] = useState(0);
 
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Check if slider has been dragged enough (at least 80% of the way)
   const isSliderComplete = () => {
     const max = getMaxPosition();
-    return position >= max * 0.8; // 80% threshold
+    return position >= max * 0.8;
   };
   const getMaxPosition = () => {
-    const knobWidth = 56; // w-14 = 56px
-    const padding = 8; // left-2 right-2 = 8px each side
+    const knobWidth = 56;
+    const padding = 8;
     return containerWidth - knobWidth - (padding * 2);
   };
 
-  // Measure container width on mount and resize
   useEffect(() => {
     const updateWidth = () => {
       if (containerRef.current) {
@@ -44,8 +43,6 @@ export default function PunchSlider({ isPunchedIn, isLoading, onPunch }: PunchSl
     let newPos = e.clientX - rect.left - 8;
 
     if (isPunchedIn) {
-      // For punch out: slide from right to left
-      // User starts from right side, so we calculate distance from right
       newPos = (rect.width - 8) - e.clientX;
     }
 
@@ -65,7 +62,6 @@ export default function PunchSlider({ isPunchedIn, isLoading, onPunch }: PunchSl
     setPosition(0);
   };
 
-  // Touch support for mobile
   const handleTouchMove = (e: React.TouchEvent) => {
     if (!dragging || !containerRef.current || isLoading) return;
 
@@ -93,23 +89,33 @@ export default function PunchSlider({ isPunchedIn, isLoading, onPunch }: PunchSl
     setPosition(0);
   };
 
-  // Calculate knob position
   const getKnobLeft = () => {
     const max = getMaxPosition();
     if (isPunchedIn) {
-      // Start from right side
       return max - position;
     }
-    // Start from left side
     return position;
   };
+
+  // Simple SVG arrow icons
+  const ArrowRightIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+    </svg>
+  );
+
+  const ArrowLeftIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+    </svg>
+  );
 
   return (
     <div
       ref={containerRef}
       className={`relative z-20 flex-1 h-16 rounded-2xl overflow-hidden cursor-pointer transition-all ${
         isPunchedIn ? "bg-red-500" : "bg-green-500"
-      } ${isLoading ? "opacity-70 cursor-not-allowed" : ""}`}
+      } ${isLoading || disabled ? "opacity-70 cursor-not-allowed" : ""}`}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
       onMouseLeave={() => setDragging(false)}
@@ -120,7 +126,9 @@ export default function PunchSlider({ isPunchedIn, isLoading, onPunch }: PunchSl
       <div className={`absolute inset-0 flex items-center text-white font-bold text-lg z-10 ${
         isPunchedIn ? "justify-start pl-8" : "justify-end pr-8"
       }`}>
-        {isLoading
+        {disabled
+          ? "✓ Attendance Completed"
+          : isLoading
           ? "Processing..."
           : isSliderComplete()
           ? "✓ Release to Confirm"
@@ -129,12 +137,12 @@ export default function PunchSlider({ isPunchedIn, isLoading, onPunch }: PunchSl
           : "Slide to Punch In"}
       </div>
 
-      {/* Slider Knob - Arrow only with animation and bold style */}
+      {/* Slider Knob - Arrow only with animation */}
       <div
         className="absolute top-2 h-12 w-14 flex items-center justify-center z-20"
         style={{ left: `${getKnobLeft()}px` }}
-        onMouseDown={() => !isLoading && setDragging(true)}
-        onTouchStart={() => !isLoading && setDragging(true)}
+        onMouseDown={() => !(isLoading || disabled) && setDragging(true)}
+        onTouchStart={() => !(isLoading || disabled) && setDragging(true)}
       >
         <span className={`text-white font-black text-4xl drop-shadow-xl ${
           !isLoading ? (isSliderComplete() ? "animate-bounce" : "animate-pulse") : ""
