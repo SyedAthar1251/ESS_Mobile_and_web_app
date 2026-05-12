@@ -5,9 +5,11 @@ interface PunchSliderProps {
   isLoading: boolean;
   onPunch: () => Promise<void>;
   disabled?: boolean;
+  isOnBreak?: boolean;
+  hasTakenBreakToday?: boolean;
 }
 
-export default function PunchSlider({ isPunchedIn, isLoading, onPunch, disabled = false }: PunchSliderProps) {
+export default function PunchSlider({ isPunchedIn, isLoading, onPunch, disabled = false, isOnBreak = false, hasTakenBreakToday = false }: PunchSliderProps) {
   const [position, setPosition] = useState(0);
   const [dragging, setDragging] = useState(false);
   const [containerWidth, setContainerWidth] = useState(0);
@@ -110,31 +112,57 @@ export default function PunchSlider({ isPunchedIn, isLoading, onPunch, disabled 
     </svg>
   );
 
+  // Determine the current action and button color based on state
+  // 4-step flow: Punch In (green) -> Break Out (orange) -> Break In (blue) -> Punch Out (red)
+  const getButtonColor = () => {
+    if (!isPunchedIn) return "bg-green-500"; // Punch In
+    if (!isOnBreak && !hasTakenBreakToday) return "bg-orange-500"; // Break Out (first time)
+    if (!isOnBreak && hasTakenBreakToday) return "bg-red-500"; // Punch Out (after break)
+    return "bg-blue-500"; // Break In
+  };
+
+  const getButtonText = () => {
+    if (disabled) return "✓ Attendance Completed";
+    if (isLoading) return "Processing...";
+    if (isSliderComplete()) return "✓ Release to Confirm";
+    
+    if (!isPunchedIn) return "Slide to Punch In";
+    if (!isOnBreak && !hasTakenBreakToday) return "Slide to Break Out";
+    if (!isOnBreak && hasTakenBreakToday) return "Slide to Punch Out";
+    return "Slide to Break In";
+  };
+
+  const getSliderDirection = () => {
+    // For punch in and break in, slide right (→)
+    // For break out and punch out, slide left (←)
+    if (!isPunchedIn) return "→";
+    if (!isOnBreak && !hasTakenBreakToday) return "←";
+    if (!isOnBreak && hasTakenBreakToday) return "←";
+    return "→";
+  };
+
+  const getTextAlignment = () => {
+    // Punch In & Break In: right aligned
+    // Break Out & Punch Out: left aligned
+    if (!isPunchedIn) return "justify-end pr-8";
+    if (!isOnBreak && !hasTakenBreakToday) return "justify-start pl-8";
+    if (!isOnBreak && hasTakenBreakToday) return "justify-start pl-8";
+    return "justify-end pr-8";
+  };
+
   return (
     <div
       ref={containerRef}
-      className={`relative z-20 flex-1 h-16 rounded-2xl overflow-hidden cursor-pointer transition-all ${
-        isPunchedIn ? "bg-red-500" : "bg-green-500"
-      } ${isLoading || disabled ? "opacity-70 cursor-not-allowed" : ""}`}
+      className={`relative z-20 flex-1 h-16 rounded-2xl overflow-hidden cursor-pointer transition-all ${getButtonColor()} ${isLoading || disabled ? "opacity-70 cursor-not-allowed" : ""}`}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
       onMouseLeave={() => setDragging(false)}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
     >
-      {/* Text - alignment: punch in = right, punch out = left */}
-      <div className={`absolute inset-0 flex items-center text-white font-bold text-lg z-10 ${
-        isPunchedIn ? "justify-start pl-8" : "justify-end pr-8"
-      }`}>
-        {disabled
-          ? "✓ Attendance Completed"
-          : isLoading
-          ? "Processing..."
-          : isSliderComplete()
-          ? "✓ Release to Confirm"
-          : isPunchedIn
-          ? "Slide to Punch Out"
-          : "Slide to Punch In"}
+      {/* Text - alignment based on state */}
+      <div className={`absolute inset-0 flex items-center text-white font-bold text-lg z-10 ${getTextAlignment()}`}>
+        {getButtonText()}
       </div>
 
       {/* Slider Knob - Arrow only with animation */}
@@ -147,7 +175,7 @@ export default function PunchSlider({ isPunchedIn, isLoading, onPunch, disabled 
         <span className={`text-white font-black text-4xl drop-shadow-xl ${
           !isLoading ? (isSliderComplete() ? "animate-bounce" : "animate-pulse") : ""
         }`}>
-          {isPunchedIn ? "←" : "→"}
+          {getSliderDirection()}
         </span>
       </div>
     </div>

@@ -12,6 +12,15 @@ import { getDashboard, DashboardData } from "../../services/dashboard.service";
 import PunchSlider from "../../components/PunchSlider";
 import ComingSoon from "../../components/ComingSoon";
 
+// Helper to get today's date string in local time (YYYY-MM-DD) - MUST be defined before component
+const getTodayString = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 const DashboardPage = () => {
   const { language, t } = useLanguage();
   const { user } = useAuth();
@@ -43,6 +52,58 @@ const DashboardPage = () => {
   });
   const [punchOutTime, setPunchOutTime] = useState<string | null>(null);
   const [lastPunchOut, setLastPunchOut] = useState<{ time: string; date: string } | null>(null);
+  
+  // Break tracking states
+  const [isOnBreak, setIsOnBreak] = useState<boolean>(() => {
+    const savedDate = localStorage.getItem("ess_punch_date");
+    const today = getTodayString();
+    if (savedDate !== today) return false;
+    const saved = localStorage.getItem("ess_break_state");
+    return saved === "true";
+  });
+  const [breakOutTime, setBreakOutTime] = useState<Date | null>(() => {
+    const savedDate = localStorage.getItem("ess_punch_date");
+    const today = getTodayString();
+    if (savedDate !== today) return null;
+    const savedTime = localStorage.getItem("ess_break_time");
+    return savedTime ? new Date(savedTime) : null;
+  });
+  const [breakOutTimeStr, setBreakOutTimeStr] = useState<string | null>(() => {
+    const savedDate = localStorage.getItem("ess_punch_date");
+    const today = getTodayString();
+    if (savedDate !== today) return null;
+    const savedTime = localStorage.getItem("ess_break_time");
+    if (!savedTime) return null;
+    const date = new Date(savedTime);
+    const hours = date.getHours().toString().padStart(2, "0");
+    const minutes = date.getMinutes().toString().padStart(2, "0");
+    return `${hours}:${minutes}`;
+  });
+  // Track break in time
+  const [breakInTime, setBreakInTime] = useState<Date | null>(() => {
+    const savedDate = localStorage.getItem("ess_punch_date");
+    const today = getTodayString();
+    if (savedDate !== today) return null;
+    const savedTime = localStorage.getItem("ess_break_in_time");
+    return savedTime ? new Date(savedTime) : null;
+  });
+  const [breakInTimeStr, setBreakInTimeStr] = useState<string | null>(() => {
+    const savedDate = localStorage.getItem("ess_punch_date");
+    const today = getTodayString();
+    if (savedDate !== today) return null;
+    const savedTime = localStorage.getItem("ess_break_in_time");
+    if (!savedTime) return null;
+    const date = new Date(savedTime);
+    const hours = date.getHours().toString().padStart(2, "0");
+    const minutes = date.getMinutes().toString().padStart(2, "0");
+    return `${hours}:${minutes}`;
+  });
+  const [hasTakenBreakToday, setHasTakenBreakToday] = useState<boolean>(() => {
+    const savedDate = localStorage.getItem("ess_punch_date");
+    const today = getTodayString();
+    return savedDate === today ? localStorage.getItem("ess_break_taken_today") === "true" : false;
+  });
+  
   const [showCamera, setShowCamera] = useState(false);
   const [showDevModal, setShowDevModal] = useState(false);
   
@@ -79,17 +140,7 @@ const DashboardPage = () => {
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [dashboardLoading, setDashboardLoading] = useState(true);
 
-  // Helper to get today's date string in local time (YYYY-MM-DD)
-  const getTodayString = () => {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  };
-
   // Check if a date is today
-  // Helper to check if a date string is today - handles both T and space format
   const isToday = (dateString: string) => {
     if (!dateString) return false;
     const datePart = dateString.includes('T') 
@@ -139,27 +190,41 @@ const DashboardPage = () => {
         return datePart === todayStr;
       }) || [];
       
-      console.log("[DashboardPage] Today's checkins:", todayCheckins);
+console.log("[DashboardPage] Today's checkins:", todayCheckins);
+       
+      // Sort checkins by time to get the last record
+      const sortedCheckins = [...todayCheckins].sort(
+        (a, b) => new Date(b.time).getTime() - new Date(a.time).getTime()
+      );
+      const lastRecord = sortedCheckins[0];
+      const lastLogType = lastRecord?.log_type?.toUpperCase();
+       
+      console.log("[DashboardPage] Last record:", lastRecord, "Type:", lastLogType);
+       
+      // Button Logic based on last record:
+      // If last is "IN" → show Punch Out (need to checkout)
+      // If last is "OUT" → show Punch In (can start new day)
+      const isPunchedIn = lastLogType === "IN";
       
-      // Check if user has punched in/out today
+console.log("[DashboardPage] isPunchedIn:", isPunchedIn);
+       
+      // Also get punchInToday and punchOutToday for backward compatibility
       const punchInToday = todayCheckins.find(c => c.log_type?.toUpperCase() === "IN");
       const punchOutToday = todayCheckins.find(c => c.log_type?.toUpperCase() === "OUT");
-      
-      // Button Logic: isPunchedIn = true means show Punch Out (red)
-      // isPunchedIn = false means show Punch In (green)
-      // If has OUT → show Punch In (green) = isPunchedIn = false
-      // If has IN but no OUT → show Punch Out (red) = isPunchedIn = true
-      
-      const isPunchedIn = !!punchInToday && !punchOutToday;
-      
-      console.log("[DashboardPage] punchInToday:", punchInToday, "punchOutToday:", punchOutToday);
-      console.log("[DashboardPage] isPunchedIn:", isPunchedIn);
+       
+      // Check if break was taken today (has break out but not final punch out)
+      // Logic: If we have more INS than OUTS, or if last action was IN after OUT, we're still in cycle
+      const inCount = todayCheckins.filter(c => c.log_type?.toUpperCase() === "IN").length;
+      const outCount = todayCheckins.filter(c => c.log_type?.toUpperCase() === "OUT").length;
+      // If more INS than OUTS, or last checkin was IN, we're in incomplete cycle (break taken but not punched out)
+      const isIncompleteCycle = inCount > outCount || (inCount === outCount && inCount > 0 && punchInToday);
       
       // Set button state - use API only
       setIsPunchedIn(isPunchedIn);
       setHasPunchedInToday(!!punchInToday);
       setHasPunchedOutToday(!!punchOutToday);
-      setCompletedToday(!!punchOutToday);
+      // Only mark as completed if full cycle (OUT after IN, and break cycle is complete)
+      setCompletedToday(!!punchOutToday && !isIncompleteCycle);
       
       // Set punch in time if punched in
       if (punchInToday && punchInToday.time && !punchOutToday) {
@@ -181,6 +246,59 @@ const DashboardPage = () => {
         setLastPunchOut(formatDateTime(new Date(punchOutToday.time)));
       } else {
         setPunchOutTime(null);
+      }
+      
+      // Set break states based on cycle
+      // Analyze checkins to find break out and break in
+      // Sort by time to process sequentially
+      const sortedTodayCheckins = [...todayCheckins].sort(
+        (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
+      );
+      
+      let foundBreakOut = false;
+      let foundBreakIn = false;
+      let breakOutTimeValue: Date | null = null;
+      let breakInTimeValue: Date | null = null;
+      let isOnBreakValue = false;
+      
+      // Go through each checkin to find break patterns
+      // Break pattern: OUT (not final) -> IN = Break Out -> Break In
+      for (let i = 0; i < sortedTodayCheckins.length; i++) {
+        const current = sortedTodayCheckins[i];
+        const currentType = current.log_type?.toUpperCase();
+        const next = sortedTodayCheckins[i + 1];
+        const nextType = next?.log_type?.toUpperCase();
+        
+        // If OUT is followed by IN (not the last record), it's a break
+        if (currentType === "OUT" && nextType === "IN") {
+          breakOutTimeValue = new Date(current.time);
+          breakInTimeValue = new Date(next.time);
+          foundBreakOut = true;
+          foundBreakIn = true;
+          // If current is OUT and next is IN, we're after break in (can punch out)
+          isOnBreakValue = false;
+        }
+        // If IN is followed by OUT (not the last), we're on break
+        if (currentType === "IN" && nextType === "OUT" && i < sortedTodayCheckins.length - 2) {
+          isOnBreakValue = true;
+        }
+        // If last record is OUT, we're done (not on break)
+        if (i === sortedTodayCheckins.length - 1 && currentType === "OUT") {
+          isOnBreakValue = false;
+        }
+      }
+      
+      setIsOnBreak(isOnBreakValue);
+      setHasTakenBreakToday(foundBreakOut);
+      
+      // Set break times
+      if (foundBreakOut && breakOutTimeValue) {
+        setBreakOutTime(breakOutTimeValue);
+        setBreakOutTimeStr(formatTime(breakOutTimeValue));
+      }
+      if (foundBreakIn && breakInTimeValue) {
+        setBreakInTime(breakInTimeValue);
+        setBreakInTimeStr(formatTime(breakInTimeValue));
       }
       
       // Find last punch out from any previous day
@@ -232,6 +350,12 @@ const DashboardPage = () => {
       }
     };
 
+    // Also fetch immediately on mount to get fresh state
+    if (user?.employeeId) {
+      console.log("[DashboardPage] Fetching attendance on mount...");
+      fetchTodayAttendance();
+    }
+
     // Handle both visibility change and focus events (better for mobile)
     document.addEventListener("visibilitychange", handleVisibilityChange);
     window.addEventListener("focus", handleVisibilityChange);
@@ -251,6 +375,25 @@ const DashboardPage = () => {
       localStorage.removeItem("ess_punch_time");
     }
   }, [isPunchedIn, punchInTime]);
+
+  // Save break state to localStorage when it changes
+  useEffect(() => {
+    localStorage.setItem("ess_break_state", isOnBreak ? "true" : "false");
+    if (isOnBreak && breakOutTime) {
+      localStorage.setItem("ess_break_time", breakOutTime.toISOString());
+    } else {
+      localStorage.removeItem("ess_break_time");
+    }
+  }, [isOnBreak, breakOutTime]);
+
+  // Save break in time to localStorage when it changes
+  useEffect(() => {
+    if (breakInTime) {
+      localStorage.setItem("ess_break_in_time", breakInTime.toISOString());
+    } else {
+      localStorage.removeItem("ess_break_in_time");
+    }
+  }, [breakInTime]);
 
   // Get location on mount
   useEffect(() => {
@@ -376,8 +519,27 @@ const DashboardPage = () => {
       return;
     }
     
+    // Determine action type based on current state
+    // 4-step flow: Punch In -> Break Out -> Break In -> Punch Out
+    let action: 'punch_in' | 'break_out' | 'break_in' | 'punch_out';
+    
+    if (!isPunchedIn) {
+      // Not punched in yet -> Punch In
+      action = 'punch_in';
+    } else if (!isOnBreak) {
+      // Punched in, not on break -> Break Out (if hasn't taken break) or Punch Out
+      if (!hasTakenBreakToday) {
+        action = 'break_out';
+      } else {
+        action = 'punch_out';
+      }
+    } else {
+      // Punched in and on break -> Break In
+      action = 'break_in';
+    }
+    
     // For punch out, show confirmation modal
-    if (isPunchedIn) {
+    if (action === 'punch_out') {
       setConfirmModal({
         show: true,
         message: "Do you want to checkout?\n\nNote: Once you checkout, you will not be able to checkin again today. If you need to checkin again, please contact your HR administrator.",
@@ -391,8 +553,11 @@ const DashboardPage = () => {
     
     setIsLoading(true);
     try {
-      // Determine the log type based on current state
-      const logType = isPunchedIn ? "OUT" : "IN";
+      // Determine the log type based on action
+      // Frappe only has IN and OUT, so we use:
+      // - IN for both punch_in and break_in
+      // - OUT for both break_out and punch_out
+      const logType = (action === 'punch_in' || action === 'break_in') ? "IN" : "OUT";
       
       // Get location for mobile
       let locationString = currentLocation;
@@ -424,16 +589,17 @@ const DashboardPage = () => {
         return;
       }
       
-      console.log("[DashboardPage] Punch action:", logType, "Location:", locationString);
+      console.log("[DashboardPage] Punch action:", action, "LogType:", logType, "Location:", locationString);
       
       // Call the actual API
       const response = await createEmployeeLog(logType, locationString);
       
       console.log("[DashboardPage] Punch success:", response);
       
-      if (!isPunchedIn) {
+      const now = new Date();
+      
+      if (action === 'punch_in') {
         // Punch In successful
-        const now = new Date();
         setPunchInTime(now);
         setPunchInTimeStr(formatTime(now));
         setIsPunchedIn(true);
@@ -444,11 +610,42 @@ const DashboardPage = () => {
         
         // Show success message
         showNotification("Punch In recorded successfully!", "success");
-      } else {
+      } else if (action === 'break_out') {
+        // Break Out successful
+        setIsOnBreak(true);
+        setBreakOutTime(now);
+        setBreakOutTimeStr(formatTime(now));
+        // Clear break in time when starting new break
+        setBreakInTime(null);
+        setBreakInTimeStr(null);
+        setHasTakenBreakToday(true);
+        
+        // Save to localStorage - clear break in, set break out
+        localStorage.setItem("ess_break_state", "true");
+        localStorage.setItem("ess_break_time", now.toISOString());
+        localStorage.setItem("ess_break_taken_today", "true");
+        localStorage.removeItem("ess_break_in_time");
+        
+        // Show success message
+        showNotification("Break Out recorded successfully!", "success");
+      } else if (action === 'break_in') {
+        // Break In successful - keep break out time, add break in time
+        setIsOnBreak(false);
+        // Don't clear break out time - keep it for display
+        setBreakInTime(now);
+        setBreakInTimeStr(formatTime(now));
+        
+        // Save to localStorage - keep break out time
+        localStorage.setItem("ess_break_state", "false");
+        localStorage.setItem("ess_break_in_time", now.toISOString());
+        
+        // Show success message
+        showNotification("Break In recorded successfully!", "success");
+      } else if (action === 'punch_out') {
         // Punch Out successful
-        const now = new Date();
         setPunchOutTime(formatTime(now));
         setIsPunchedIn(false);
+        setIsOnBreak(false);
         setHasPunchedOutToday(true);
         setCompletedToday(true);
         
@@ -639,14 +836,34 @@ const DashboardPage = () => {
           <p className="text-gray-500 text-xs mt-1">{new Date().toLocaleDateString(language === "ar" ? "ar-SA" : "en-US", { weekday: 'long', month: 'long', day: 'numeric' })}</p>
         </div>
 
-        {/* Punch In/Out Times - Show only when punched in but not yet punched out */}
-        {isPunchedIn && punchInTimeStr && (
-          <div className="flex gap-4 mb-3 text-xs">
-            <div className="flex items-center gap-1">
-              <span className="text-green-600">✓</span>
-              <span className="text-gray-500">In:</span>
-              <span className="font-medium text-gray-700">{punchInTimeStr}</span>
-            </div>
+        {/* Punch In/Out Times - Show when punched in or break times exist */}
+        {(isPunchedIn || hasTakenBreakToday) && (
+          <div className="mb-3 text-xs space-y-1">
+            {punchInTimeStr && (
+              <div className="flex items-center gap-1">
+                <span className="text-green-600">✓</span>
+                <span className="text-gray-500">In:</span>
+                <span className="font-medium text-gray-700">{punchInTimeStr}</span>
+              </div>
+            )}
+            {hasTakenBreakToday && (
+              <div className="flex gap-4">
+                {breakOutTimeStr && (
+                  <div className="flex items-center gap-1">
+                    <span className="text-orange-600">↳</span>
+                    <span className="text-gray-500">Break Out:</span>
+                    <span className="font-medium text-gray-700">{breakOutTimeStr}</span>
+                  </div>
+                )}
+                {breakInTimeStr && (
+                  <div className="flex items-center gap-1">
+                    <span className="text-blue-600">↳</span>
+                    <span className="text-gray-500">Break In:</span>
+                    <span className="font-medium text-gray-700">{breakInTimeStr}</span>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 
@@ -670,6 +887,8 @@ const DashboardPage = () => {
               isLoading={isLoading}
               onPunch={handlePunch}
               disabled={completedToday}
+              isOnBreak={isOnBreak}
+              hasTakenBreakToday={hasTakenBreakToday}
             />
           </div>
           
