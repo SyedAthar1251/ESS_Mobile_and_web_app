@@ -143,17 +143,17 @@ const Sidebar = ({ isOpen, onClose, isMinimized = false, onToggleMinimize }: Pro
   };
 
   // Navigation tabs with clear icons - Phase 1 Focus
-  // Phase 1: Dashboard, Attendance (Core AlphaX)
-  // Phase 2: Leave, Salary, Expense, Tasks, Documents, Reports (Advanced AlphaX)
+  // Phase 1: Dashboard, Attendance, Leave, Expense, Salary (Core AlphaX)
+  // Phase 2: Tasks, Documents, Reports (Advanced AlphaX)
   // Phase 3: Travel, Loan (Manager Features)
   const tabs = [
     { to: "/dashboard", label: isRTL ? "الرئيسية" : "Dashboard", icon: Icons.dashboard, phase: 1 },
     { to: "/attendance", label: isRTL ? "الحضور والانصراف" : "Attendance", icon: Icons.attendance, phase: 1 },
+    { to: "/leave", label: isRTL ? "الإجازات" : "Leave", icon: Icons.leave, phase: 1 },
+    { to: "/expense", label: isRTL ? "المصروفات" : "Expense", icon: Icons.expense, phase: 1 },
+    { to: "/salary", label: isRTL ? "الراتب" : "Salary", icon: Icons.salary, phase: 1 },
     { to: "/profile", label: isRTL ? "الملف الشخصي" : "Profile", icon: Icons.profile, phase: 1 },
-    { to: "/leave", label: isRTL ? "الإجازات" : "Leave", icon: Icons.leave, phase: 2 },
-    { to: "/holiday", label: isRTL ? "العطلات" : "Holiday", icon: Icons.holiday, phase: 2 },
-    { to: "/salary", label: isRTL ? "الراتب" : "Salary", icon: Icons.salary, phase: 2 },
-    { to: "/expense", label: isRTL ? "المصروفات" : "Expense", icon: Icons.expense, phase: 2 },
+    { to: "/holiday", label: isRTL ? "العطلات" : "Holiday", icon: Icons.holiday, phase: 1 },
     { to: "/tasks", label: isRTL ? "المهام" : "Tasks", icon: Icons.tasks, phase: 2 },
     { to: "/documents", label: isRTL ? "المستندات" : "Documents", icon: Icons.documents, phase: 2 },
     { to: "/reports", label: isRTL ? "التقارير" : "Reports", icon: Icons.reports, phase: 2 },
@@ -232,7 +232,7 @@ const Sidebar = ({ isOpen, onClose, isMinimized = false, onToggleMinimize }: Pro
 
             {/* Navigation */}
             <nav className="flex-1 px-2 py-4 space-y-1 overflow-y-auto">
-              {/* Phase 1 Header - Core AlphaX */}
+{/* Phase 1 Header - Core AlphaX */}
               {!isMinimized && (
                 <div className="px-3 py-2">
                   <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: themeColors.sidebarText || '#ffffff' }}>
@@ -260,6 +260,47 @@ const Sidebar = ({ isOpen, onClose, isMinimized = false, onToggleMinimize }: Pro
                         {tab.icon}
                       </span>
                       {!isMinimized && <span>{tab.label}</span>}
+                    </>
+                  )}
+                </NavLink>
+              ))}
+
+
+              {/* Phase 2 & 3 Header */}
+              {!isMinimized && (
+                <div className="px-3 pt-4 pb-2">
+                  <span className="text-xs font-semibold uppercase tracking-wider opacity-60" style={{ color: themeColors.sidebarText || '#ffffff' }}>
+                    {isRTL ? "الميزات الإضافية" : "Additional Features"}
+                  </span>
+                </div>
+              )}
+              {tabs.filter(tab => tab.phase > 1).map((tab) => (
+                <NavLink
+                  key={tab.to}
+                  to={tab.to}
+                  onClick={onClose}
+                  className={({ isActive }) =>
+                    `flex items-center gap-3 px-3 py-3 rounded-lg transition opacity-60 ${isMinimized ? "justify-center" : ""}`
+                  }
+                  style={({ isActive }) => ({
+                    backgroundColor: isActive ? (themeColors.sidebarActiveBg || themeColors.primary) : 'transparent',
+                    color: isActive ? (themeColors.sidebarActiveText || '#ffffff') : (themeColors.sidebarText || themeColors.primaryLight),
+                  })}
+                  title={isMinimized ? tab.label : undefined}
+                >
+                  {({ isActive }) => (
+                    <>
+                      <span style={{ color: isActive ? (themeColors.sidebarActiveText || '#ffffff') : (themeColors.sidebarText || themeColors.primaryLight) }}>
+                        {tab.icon}
+                      </span>
+                      {!isMinimized && (
+                        <div className="flex items-center gap-2">
+                          <span>{tab.label}</span>
+                          <span className="text-xs px-1.5 py-0.5 rounded bg-yellow-500/20 text-yellow-200">
+                            {tab.phase === 2 ? "P2" : "P3"}
+                          </span>
+                        </div>
+                      )}
                     </>
                   )}
                 </NavLink>

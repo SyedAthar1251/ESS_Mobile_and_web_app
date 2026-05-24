@@ -69,14 +69,11 @@ const AppRoutes = () => {
         }
       />
 
-      {/* Phase 2 - Advanced AlphaX - Coming Soon */}
       <Route
         path="/holiday"
         element={
           <AuthenticatedLayout>
-            <ComingSoon title="Holiday & Activities">
-              <HolidayActivityPage />
-            </ComingSoon>
+            <HolidayActivityPage />
           </AuthenticatedLayout>
         }
       />
@@ -84,9 +81,7 @@ const AppRoutes = () => {
         path="/leave"
         element={
           <AuthenticatedLayout>
-            <ComingSoon title="Leave Management">
-              <LeavePage />
-            </ComingSoon>
+            <LeavePage />
           </AuthenticatedLayout>
         }
       />
@@ -94,9 +89,7 @@ const AppRoutes = () => {
         path="/expense"
         element={
           <AuthenticatedLayout>
-            <ComingSoon title="Expenses">
-              <ExpensePage />
-            </ComingSoon>
+            <ExpensePage />
           </AuthenticatedLayout>
         }
       />
@@ -104,9 +97,7 @@ const AppRoutes = () => {
         path="/salary"
         element={
           <AuthenticatedLayout>
-            <ComingSoon title="Salary & Payslips">
-              <SalaryPage />
-            </ComingSoon>
+            <SalaryPage />
           </AuthenticatedLayout>
         }
       />

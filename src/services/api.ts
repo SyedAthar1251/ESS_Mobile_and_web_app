@@ -52,28 +52,36 @@ const api = {
             headers[key] = value as string;
           });
         }
-        
-        // Determine body content - don't stringify form-urlencoded data
-        let body: string | undefined;
-        const contentType = headers['Content-Type'] || headers['content-type'] || '';
-        
-        if (contentType.includes('application/x-www-form-urlencoded')) {
-          // Don't stringify form data - send as-is
+
+        // ── Determine body correctly ───────────────────────────────────────
+        // FormData (file uploads) must be passed raw — the fetch API
+        // will encode it as multipart/form-data with a boundary header.
+        // URLSearchParams (form-urlencoded) must also be passed raw —
+        // fetch will set the correct Content-Type with charset.
+        // Everything else (plain JS objects) goes through JSON.stringify.
+        let body: BodyInit | undefined;
+        if (data instanceof FormData) {
+          body = data;
+          // Don't override the browser-set multipart boundary header
+          delete headers['Content-Type'];
+        } else if (data instanceof URLSearchParams) {
+          body = data.toString();
+          headers['Content-Type'] = 'application/x-www-form-urlencoded';
+        } else if (typeof data === 'string') {
           body = data;
         } else {
-          // Default to JSON
           body = data ? JSON.stringify(data) : undefined;
           if (!headers['Content-Type']) {
             headers['Content-Type'] = 'application/json';
           }
         }
-        
+
         const response = await fetch(url, {
           method: 'POST',
           headers,
           body,
         });
-        
+
         // Check for HTTP errors
         if (!response.ok) {
           let errorData: any;
@@ -83,12 +91,12 @@ const api = {
             errorData = { message: response.statusText };
           }
           console.error("[API] HTTP Error:", response.status, errorData);
-          
+
           // Throw error with server message if available
           const errorMessage = errorData?.exception || errorData?.error || errorData?.message || `HTTP Error: ${response.status}`;
           throw new Error(errorMessage);
         }
-        
+
         let responseData: T;
         if (options?.responseType === 'blob') {
           responseData = await response.blob() as unknown as T;
