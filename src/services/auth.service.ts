@@ -15,6 +15,7 @@ export interface LoginResponse {
   full_name?: string;
   user?: string;
   employee_id?: string;
+  user_type?: string;
   key_details?: {
     api_key: string;
     api_secret: string;

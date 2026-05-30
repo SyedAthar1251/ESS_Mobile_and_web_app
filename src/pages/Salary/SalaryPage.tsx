@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useTheme } from "../../store/ThemeContext";
 import { useLanguage } from "../../i18n/LanguageContext";
@@ -11,6 +11,9 @@ import {
   getSalarySlips,
   getSalarySlipDetails,
   getCompanyDetails,
+  getSalarySlipPrintFormat,
+  getSalarySlipPrintHtml,
+  downloadSalarySlipPrintPdf,
   SalarySlipSummary,
   SalarySlipDetails,
   CompanyDetails,
@@ -19,10 +22,8 @@ import SalarySlipPdfTemplate, {
   PdfCompanyInfo,
   PdfSalaryData,
 } from "../../components/Salary/SalarySlipPdfTemplate";
-
-// ─────────────────────────────────────────────
-//   SKELETON LOADERS
-// ─────────────────────────────────────────────
+import { translateDynamic, translateArrayField, translateObjectFields, shouldTranslate } from "../../services/translation.service";
+import { LANGUAGES } from "../../i18n/languages";
 
 const SummaryCardSkeleton = ({ isDark }: { isDark: boolean }) => (
   <div className={`rounded-2xl p-4 text-center animate-pulse ${isDark ? "bg-gray-800" : "bg-gray-100"}`}>
@@ -66,11 +67,6 @@ const EarningRowSkeleton = ({ isDark, index = 0 }: EarningRowSkeletonProps) => (
   </motion.div>
 );
 
-// ─────────────────────────────────────────────
-//   CONSTANTS
-// ─────────────────────────────────────────────
-
-// ── Inline SVG icon paths (zero new dependencies) ──
 const Icons = {
   download: (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
@@ -119,17 +115,12 @@ const Icons = {
   ),
 };
 
-// ─────────────────────────────────────────────
-//   MAIN COMPONENT
-// ─────────────────────────────────────────────
-
 const SalaryPage = () => {
 
   const { theme } = useTheme();
   const { language, t } = useLanguage();
   const isDark = theme !== "light";
 
-  // ── State ──────────────────────────────────
   const [salaryList, setSalaryList] = useState<SalarySlipSummary[]>([]);
   const [selectedSalary, setSelectedSalary] = useState("");
   const [salaryDetails, setSalaryDetails] = useState<SalarySlipDetails | null>(null);
@@ -139,11 +130,14 @@ const SalaryPage = () => {
   const [selectedMonth, setSelectedMonth] = useState("");
   const [refreshing, setRefreshing] = useState(false);
 
-  // ── PDF generation state ──────────────────
   const [downloading, setDownloading] = useState(false);
   const [sharing, setSharing] = useState(false);
 
-  // ── Toast (same pattern as LeavePage) ─────
+  const [showPrintPreviewModal, setShowPrintPreviewModal] = useState(false);
+  const [printPreviewHtml, setPrintPreviewHtml] = useState<string | null>(null);
+  const [printPreviewLoading, setPrintPreviewLoading] = useState(false);
+  const [usingPrintFormat, setUsingPrintFormat] = useState(false);
+
   const [toast, setToast] = useState<{
     visible: boolean;
     message: string;
@@ -153,24 +147,149 @@ const SalaryPage = () => {
   useEffect(() => {
     if (!toast.visible) return;
     const duration = toast.type === "error" ? 0 : 5000;
-    const t = setTimeout(() => setToast((p) => ({ ...p, visible: false })), duration);
-    return () => clearTimeout(t);
+    const timeout = setTimeout(() => setToast((p) => ({ ...p, visible: false })), duration);
+    return () => clearTimeout(timeout);
   }, [toast.visible, toast.type]);
 
   const showToast = (message: string, type: "success" | "error" = "success") =>
     setToast({ visible: true, message, type });
+
+  // ═══════════════════════════════════════════════════════════
+  //  TRANSLATION STATE  (dynamic API values only)
+  // ═══════════════════════════════════════════════════════════
+
+  const [translatedEmployeeName, setTranslatedEmployeeName] = useState<string>("");
+  const [translatedEarnings, setTranslatedEarnings] = useState<{ component: string; amount: number }[]>([]);
+  const [translatedDeductions, setTranslatedDeductions] = useState<{ component: string; amount: number }[]>([]);
+  const [translatedStatus, setTranslatedStatus] = useState<string>("");
+  const [translatedDept, setTranslatedDept] = useState<string>("");
+  const [translatedDesig, setTranslatedDesig] = useState<string>("");
+
+  const prevLangRef = useRef<string>(language);
+  const prevDetailsIdRef = useRef<string>("");
+
+  // ── Translate dynamic values when salaryDetails or language changes ──
+  useEffect(() => {
+    if (!salaryDetails) {
+      setTranslatedEmployeeName("");
+      setTranslatedEarnings([]);
+      setTranslatedDeductions([]);
+      setTranslatedStatus("");
+      setTranslatedDept("");
+      setTranslatedDesig("");
+      return;
+    }
+
+    const detailsId = salaryDetails.name;
+    const langChanged = prevLangRef.current !== language;
+    const detailsChanged = prevDetailsIdRef.current !== detailsId;
+
+    if (!langChanged && !detailsChanged) return;
+
+    prevLangRef.current = language;
+    prevDetailsIdRef.current = detailsId;
+
+    // English → use originals directly
+    if (language === LANGUAGES.EN) {
+      setTranslatedEmployeeName(salaryDetails.employee_name || "");
+      setTranslatedEarnings(
+        (salaryDetails.earnings ?? []).map((e) => ({ component: e.salary_component, amount: e.amount })),
+      );
+      setTranslatedDeductions(
+        (salaryDetails.deductions ?? []).map((d) => ({ component: d.salary_component, amount: d.amount })),
+      );
+      setTranslatedStatus((salaryDetails as any)?.status || "");
+      setTranslatedDept((salaryDetails as any)?.department || "");
+      setTranslatedDesig((salaryDetails as any)?.designation || "");
+      return;
+    }
+
+    // Arabic → translate
+    let cancelled = false;
+
+    const doTranslate = async () => {
+      try {
+        const status = (salaryDetails as any)?.status || "";
+        const dept = (salaryDetails as any)?.department || "";
+        const desig = (salaryDetails as any)?.designation || "";
+
+        const [nameResult, earningsResult, deductionsResult] = await Promise.all([
+          shouldTranslate(salaryDetails.employee_name || "")
+            ? translateDynamic(salaryDetails.employee_name || "", language)
+            : Promise.resolve(salaryDetails.employee_name || ""),
+          translateArrayField(
+            (salaryDetails.earnings ?? []).map((e) => ({ salary_component: e.salary_component, amount: e.amount })),
+            "salary_component" as any,
+            language,
+          ),
+          translateArrayField(
+            (salaryDetails.deductions ?? []).map((d) => ({ salary_component: d.salary_component, amount: d.amount })),
+            "salary_component" as any,
+            language,
+          ),
+        ]);
+
+        if (cancelled) return;
+
+        setTranslatedEmployeeName(nameResult);
+        setTranslatedEarnings(
+          earningsResult.map((e: any) => ({ component: e.salary_component, amount: e.amount })),
+        );
+        setTranslatedDeductions(
+          deductionsResult.map((d: any) => ({ component: d.salary_component, amount: d.amount })),
+        );
+
+        // Translate optional single fields
+        const [statusResult, deptResult, desigResult] = await Promise.all([
+          status && shouldTranslate(status) ? translateDynamic(status, language) : Promise.resolve(status),
+          dept && shouldTranslate(dept) ? translateDynamic(dept, language) : Promise.resolve(dept),
+          desig && shouldTranslate(desig) ? translateDynamic(desig, language) : Promise.resolve(desig),
+        ]);
+
+        if (cancelled) return;
+        setTranslatedStatus(statusResult);
+        setTranslatedDept(deptResult);
+        setTranslatedDesig(desigResult);
+      } catch (err) {
+        console.error("[SalaryPage Translation Error]", err);
+        if (!cancelled) {
+          setTranslatedEmployeeName(salaryDetails.employee_name || "");
+          setTranslatedEarnings(
+            (salaryDetails.earnings ?? []).map((e) => ({ component: e.salary_component, amount: e.amount })),
+          );
+          setTranslatedDeductions(
+            (salaryDetails.deductions ?? []).map((d) => ({ component: d.salary_component, amount: d.amount })),
+          );
+          setTranslatedStatus((salaryDetails as any)?.status || "");
+          setTranslatedDept((salaryDetails as any)?.department || "");
+          setTranslatedDesig((salaryDetails as any)?.designation || "");
+        }
+      }
+    };
+
+    doTranslate();
+    return () => { cancelled = true; };
+  }, [salaryDetails, language]);
 
   // ── PDF blob generation ───────────────────
   const pdfSaveAsBlob = useCallback(
     async (
       company: CompanyDetails,
       salary: SalarySlipDetails,
-      language: "en" | "ar" = "en",
+      lang: "en" | "ar" = "en",
+      translated?: {
+        employeeName: string;
+        earnings: { component: string; amount: number }[];
+        deductions: { component: string; amount: number }[];
+        status: string;
+        department: string;
+        designation: string;
+      },
     ): Promise<Blob> => {
       const period =
-        `${new Date(salary.start_date).toLocaleDateString(language === "ar" ? "ar-SA" : "en-US", { month: "short", year: "numeric" })} – ${new Date(salary.end_date).toLocaleDateString(language === "ar" ? "ar-SA" : "en-US", { month: "short", year: "numeric" })}`.trim();
+        `${new Date(salary.start_date).toLocaleDateString(lang === "ar" ? "ar-SA" : "en-US", { month: "short", year: "numeric" })} – ${new Date(salary.end_date).toLocaleDateString(lang === "ar" ? "ar-SA" : "en-US", { month: "short", year: "numeric" })}`.trim();
       const generatedOn = new Date().toLocaleString(
-        language === "ar" ? "ar-SA" : "en-US", {
+        lang === "ar" ? "ar-SA" : "en-US", {
         day: "2-digit",
         month: "short",
         year: "numeric",
@@ -179,7 +298,6 @@ const SalaryPage = () => {
         hour12: true,
       });
 
-      // Build PDF template props
       const companyName =
         (company as any)?.company_name || (company as any)?.name || "Unknown";
       const companyLogo: string | undefined =
@@ -213,28 +331,22 @@ const SalaryPage = () => {
       );
 
       const pdfSalary: PdfSalaryData = {
-        employeeName: salary.employee_name ?? "",
+        employeeName: translated?.employeeName ?? salary.employee_name ?? "",
         employeeId: salary.employee ?? "",
-        department:
-          (salary as any)?.department ||
-          (salary as SalarySlipDetails & { department?: string }).department,
-        designation:
-          (salary as any)?.designation ||
-          (salary as SalarySlipDetails & { designation?: string }).designation,
+        department: translated?.department || (salary as any)?.department || (salary as any)?.department,
+        designation: translated?.designation || (salary as any)?.designation || (salary as any)?.designation,
         salarySlipId: salary.name,
         period,
         grossPay: salary.gross_pay ?? 0,
         netPay: salary.net_pay ?? 0,
-        earnings: (salary.earnings ?? []).map((e) => ({
-          component: e.salary_component,
-          amount: e.amount,
-        })),
-        deductions: (salary.deductions ?? []).map((d) => ({
-          component: d.salary_component,
-          amount: d.amount,
-        })),
+        earnings: translated?.earnings?.length
+          ? translated.earnings.map((e) => ({ component: e.component, amount: e.amount }))
+          : (salary.earnings ?? []).map((e) => ({ component: e.salary_component, amount: e.amount })),
+        deductions: translated?.deductions?.length
+          ? translated.deductions.map((d) => ({ component: d.component, amount: d.amount }))
+          : (salary.deductions ?? []).map((d) => ({ component: d.salary_component, amount: d.amount })),
         postingDate: (salary as any)?.posting_date
-          ? new Date((salary as any).posting_date).toLocaleDateString(language === "ar" ? "ar-SA" : "en-US", {
+          ? new Date((salary as any).posting_date).toLocaleDateString(lang === "ar" ? "ar-SA" : "en-US", {
               day: "2-digit",
               month: "short",
               year: "numeric",
@@ -242,10 +354,9 @@ const SalaryPage = () => {
           : undefined,
         paymentDays: (salary as any)?.payment_days,
         leaveWithoutPay: (salary as any)?.leave_without_pay,
-        status: (salary as any)?.status,
+        status: translated?.status || (salary as any)?.status,
       };
 
-      // ── Render template into a hidden off-screen container ─-
       const wrapper = document.createElement("div");
       wrapper.style.position = "fixed";
       wrapper.style.top = "-9999px";
@@ -258,8 +369,6 @@ const SalaryPage = () => {
 
       let err: unknown;
       try {
-        // We need React to mount into root - renderSalarySlipPdf is not exported.
-        // Instead we render the component directly via createRoot.
         const { createRoot } = await import("react-dom/client");
         const r = createRoot(root);
         r.render(
@@ -267,10 +376,9 @@ const SalaryPage = () => {
             company={companyData}
             salary={pdfSalary}
             generatedOn={generatedOn}
-            language={language}
+            language={lang}
           />,
         );
-        // Wait a tick so the browser paints before canvas fires
         await new Promise((resolve) => requestAnimationFrame(resolve));
         await new Promise((resolve) => requestAnimationFrame(resolve));
 
@@ -283,20 +391,18 @@ const SalaryPage = () => {
 
         const imgData = canvas.toDataURL("image/png", 1.0);
 
-        // ── Build A4 PDF ──────────────────────────────────────
         const pdf = new jsPDF({
           orientation: "portrait",
           unit: "pt",
           format: "a4",
         });
 
-        const PAGE_W = 595.276;   // A4 pt width
-        const PAGE_H = 841.890;   // A4 pt height
+        const PAGE_W = 595.276;
+        const PAGE_H = 841.890;
         const pxToPt = (px: number) => (px * 72) / 96;
         const imgW = pxToPt(canvas.width);
         const imgH = pxToPt(canvas.height);
 
-        // Scale to fit page width
         const ratio = Math.min(PAGE_W / imgW, PAGE_H / imgH);
         const drawW = imgW * ratio;
         const drawH = imgH * ratio;
@@ -316,13 +422,11 @@ const SalaryPage = () => {
     [],
   );
 
-  // ── Labels & values helpers ────────────────
   const labelCls = `text-xs font-medium ${isDark ? "text-gray-400" : "text-gray-500"}`;
   const valueCls = `font-bold ${isDark ? "text-white" : "text-gray-800"}`;
   const titleCls = `text-xl font-bold ${isDark ? "text-white" : "text-gray-800"}`;
   const cardCls = `rounded-2xl shadow-lg p-5 transition-all ${isDark ? "bg-gray-800 border border-gray-700" : "bg-white"}`;
 
-  // ── Dynamic, deduplicated month options ────
   const monthOptions = useMemo(() => {
     const uniqueMonths = new Map<string, { label: string; value: string }>();
 
@@ -337,9 +441,8 @@ const SalaryPage = () => {
     });
 
     return Array.from(uniqueMonths.values());
-  }, [salaryList]);
+  }, [salaryList, language]);
 
-  // ── Filtered salary list by selected month ────
   const filteredSalaryList = useMemo(() => {
     return salaryList.filter((item) => {
       if (!selectedMonth) return true;
@@ -349,7 +452,6 @@ const SalaryPage = () => {
     });
   }, [salaryList, selectedMonth]);
 
-  // ── Generic fetch-data wrapper (used on mount + pull-to-refresh) ──
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
@@ -377,12 +479,10 @@ const SalaryPage = () => {
     }
   }, [selectedSalary]);
 
-  // ── Initial mount ──────────────────────────
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
-  // ── Load details whenever selectedSalary changes ─
   useEffect(() => {
     if (!selectedSalary || refreshing) return;
     let cancelled = false;
@@ -398,13 +498,11 @@ const SalaryPage = () => {
     return () => { cancelled = true; };
   }, [selectedSalary, refreshing]);
 
-  // ── Pull-to-refresh ────────────────────────
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     await fetchData();
   }, [fetchData]);
 
-  // ── Action buttons ─────────────────────────
   const getUserCredentials = () => {
     const saved = localStorage.getItem("ess_user");
     if (saved) {
@@ -425,54 +523,137 @@ const SalaryPage = () => {
       reader.readAsDataURL(blob);
     });
 
+  const handlePrintPreview = async () => {
+    if (!selectedSalary || !salaryDetails) {
+      console.warn("[SalaryPrint] Cannot open preview — no salary slip selected");
+      return;
+    }
+
+    console.log("[SalaryPrint] === PREVIEW BUTTON CLICKED ===");
+    console.log("[SalaryPrint] Selected Salary Slip:", selectedSalary);
+
+    setPrintPreviewLoading(true);
+    setPrintPreviewHtml(null);
+    setShowPrintPreviewModal(true);
+
+    try {
+      const printFormat = await getSalarySlipPrintFormat(selectedSalary, language);
+
+      if (!printFormat) {
+        console.warn("[SalaryPrint] No Print Format returned from backend. Closing preview.");
+        setPrintPreviewLoading(false);
+        showToast("No Print Format configured for this company. Please contact admin.", "error");
+        setShowPrintPreviewModal(false);
+        return;
+      }
+
+      console.log("[SalaryPrint] Using Print Format for preview:", printFormat);
+
+      const html = await getSalarySlipPrintHtml(selectedSalary, printFormat, language);
+
+      if (!html) {
+        console.error("[SalaryPrint] Failed to get HTML from printview. Closing preview modal.");
+        setShowPrintPreviewModal(false);
+        setPrintPreviewLoading(false);
+        showToast("Failed to load official preview. Try Download instead.", "error");
+        return;
+      }
+
+      setPrintPreviewHtml(html);
+      setUsingPrintFormat(true);
+      console.log("[SalaryPrint] Preview HTML loaded successfully into modal.");
+
+    } catch (err) {
+      console.error("[SalaryPrint] Unexpected error during preview:", err);
+      setShowPrintPreviewModal(false);
+      showToast("Preview failed. Using fallback PDF generation.", "error");
+    } finally {
+      setPrintPreviewLoading(false);
+    }
+  };
+
+  const saveAndShareBlob = async (blob: Blob, fileName: string, title: string, text: string) => {
+    const isNativeAndroid = Capacitor.isNativePlatform() && Capacitor.getPlatform() === "android";
+    if (isNativeAndroid) {
+      const base64 = await blobToBase64(blob);
+      const result = await Filesystem.writeFile({ path: fileName, data: base64, directory: Directory.Cache });
+      await Share.share({ title, text, files: [result.uri] });
+    } else {
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      setTimeout(() => { document.body.removeChild(link); URL.revokeObjectURL(url); }, 1000);
+    }
+  };
+
+  
+
+  const handleDownloadUsingPrintFormat = async () => {
+    if (!selectedSalary || !salaryDetails) {
+      showToast("No salary slip selected", "error");
+      return;
+    }
+    console.log("[SalaryPrint] === DOWNLOAD CLICKED ===");
+    setDownloading(true);
+    try {
+      const printFormat = await getSalarySlipPrintFormat(selectedSalary, language);
+      console.log("[SalaryPrint] printFormat:", printFormat);
+      if (!printFormat) {
+        console.log("[SalaryPrint] No format, using fallback");
+        await handleDownload();
+        return;
+      }
+      console.log("[SalaryPrint] Downloading PDF from server...");
+      const blob = await downloadSalarySlipPrintPdf(selectedSalary, printFormat, language);
+      console.log("[SalaryPrint] blob:", blob ? "size=" + blob.size : "NULL");
+      if (!blob || blob.size < 100) {
+        console.log("[SalaryPrint] Bad blob, using fallback");
+        await handleDownload();
+        return;
+      }
+      const periodLabel = new Date(salaryDetails.start_date).toLocaleDateString(language === "ar" ? "ar-SA" : "en-US", { month: "long", year: "numeric" });
+      const fileName = "SalarySlip-" + periodLabel.replace(/ /g, "_") + ".pdf";
+      await saveAndShareBlob(blob, fileName, "Salary Slip", "Salary Slip PDF");
+      showToast(t("salaryDownloaded"), "success");
+      setUsingPrintFormat(true);
+    } catch (e) {
+      console.error("[SalaryPrint] Download error:", e);
+      await handleDownload();
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   const handleDownload = async () => {
     if (!salaryDetails) return;
+    console.log("[SalaryPrint] === CLIENT-SIDE DOWNLOAD ===");
     try {
       setDownloading(true);
+      console.log("[SalaryPrint] Fetching company...");
       const company = await getCompanyDetails();
-      const blob = await pdfSaveAsBlob(company, salaryDetails, language as "en" | "ar");
-      const periodLabel =
-        `${new Date(salaryDetails.start_date).toLocaleDateString(language === "ar" ? "ar-SA" : "en-US", { month: "short", year: "numeric" })}_${new Date(salaryDetails.end_date).toLocaleDateString(language === "ar" ? "ar-SA" : "en-US", { year: "numeric" })}`.split("_").pop() ??
-        new Date().getFullYear().toString();
-      const slipMonth = new Date(salaryDetails.start_date).toLocaleDateString(language === "ar" ? "ar-SA" : "en-US", {
-        month: "long",
-        year: "numeric",
-      });
-      const fileName = `SalarySlip-${slipMonth}.pdf`;
-      const isNativeAndroid =
-        Capacitor.isNativePlatform() && Capacitor.getPlatform() === "android";
+      console.log("[SalaryPrint] Company:", company?.company_name);
 
-      if (isNativeAndroid) {
-        try {
-          const base64Data = await blobToBase64(blob);
-          const result = await Filesystem.writeFile({
-            path: fileName,
-            data: base64Data,
-            directory: Directory.Documents,
-          });
-          await Share.share({
-            title: "Salary Slip",
-            text: "Salary Slip PDF",
-            files: [result.uri],
-          });
-          showToast(t("salaryDownloaded"), "success");
-        } catch (err) {
-          console.error("[Android Save Error]", err);
-          throw err;
-        }
-      } else {
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = fileName;
-        document.body.appendChild(link);
-        link.click();
-        setTimeout(() => {
-          document.body.removeChild(link);
-          URL.revokeObjectURL(url);
-        }, 1000);
-        showToast(t("salaryDownloaded"), "success");
-      }
+      const translatedForPdf = {
+        employeeName: translatedEmployeeName || salaryDetails.employee_name || "",
+        earnings: translatedEarnings.length ? translatedEarnings : (salaryDetails.earnings ?? []).map((e) => ({ component: e.salary_component, amount: e.amount })),
+        deductions: translatedDeductions.length ? translatedDeductions : (salaryDetails.deductions ?? []).map((d) => ({ component: d.salary_component, amount: d.amount })),
+        status: translatedStatus || (salaryDetails as any)?.status || "",
+        department: translatedDept || (salaryDetails as any)?.department || "",
+        designation: translatedDesig || (salaryDetails as any)?.designation || "",
+      };
+
+      console.log("[SalaryPrint] Generating PDF...");
+      const blob = await pdfSaveAsBlob(company, salaryDetails, language as "en" | "ar", language === LANGUAGES.AR ? translatedForPdf : undefined);
+      if (!blob) { showToast(t("unableToGenerateSalarySlip"), "error"); return; }
+      console.log("[SalaryPrint] PDF size:", blob.size);
+
+      const slipMonth = new Date(salaryDetails.start_date).toLocaleDateString(language === "ar" ? "ar-SA" : "en-US", { month: "long", year: "numeric" });
+      const fileName = "SalarySlip-" + slipMonth.replace(/ /g, "_") + ".pdf";
+      await saveAndShareBlob(blob, fileName, "Salary Slip", "Salary Slip PDF");
+      showToast(t("salaryDownloaded"), "success");
     } catch (e) {
       console.error("[Download Error]", e);
       showToast(t("unableToGenerateSalarySlip"), "error");
@@ -483,54 +664,39 @@ const SalaryPage = () => {
 
   const handleShare = async () => {
     if (!salaryDetails) return;
+    console.log("[SalaryShare] === SHARE CLICKED ===");
     try {
       setSharing(true);
-      const company = await getCompanyDetails();
-      const blob = await pdfSaveAsBlob(company, salaryDetails, language as "en" | "ar");
-      const period =
-        `${new Date(salaryDetails.start_date).toLocaleDateString(language === "ar" ? "ar-SA" : "en-US", { month: "short", year: "numeric" })} – ${new Date(salaryDetails.end_date).toLocaleDateString(language === "ar" ? "ar-SA" : "en-US", { month: "short", year: "numeric" })}`;
-      const periodLabel = period.trim();
-      const slipMonth = new Date(salaryDetails.start_date).toLocaleDateString(language === "ar" ? "ar-SA" : "en-US", {
-        month: "long",
-        year: "numeric",
-      });
-      const fileName = `SalarySlip-${slipMonth}.pdf`;
-
-      const isNativeAndroid =
-        Capacitor.isNativePlatform() && Capacitor.getPlatform() === "android";
-
-      if (isNativeAndroid) {
-        const base64Data = await blobToBase64(blob);
-        const result = await Filesystem.writeFile({
-          path: fileName,
-          data: base64Data,
-          directory: Directory.Documents,
-        });
-        await Share.share({
-          title: `${t("salarySlip")} – ${periodLabel}`,
-          text: `${t("salarySlip")}\n\n${t("employeeName")}: ${salaryDetails.employee_name || "—"}\n${t("payrollPeriod")}: ${periodLabel}\n${t("netPay")}: ${(salaryDetails.net_pay || 0).toLocaleString(language === "ar" ? "ar-SA" : "en-US")}`,
-          files: [result.uri],
-        });
-        showToast(t("salaryShared"), "success");
-      } else {
-        const file = new File([blob], fileName, { type: "application/pdf" });
-
-        if (navigator.share && (navigator as any).canShare?.({ files: [file] })) {
-          await navigator.share({
-            title: `${t("salarySlip")} – ${periodLabel}`,
-            files: [file],
-          });
-        } else if (navigator.share) {
-          await navigator.share({
-            title: `${t("salarySlip")} – ${periodLabel}`,
-            text: `${t("salarySlip")}\n\n${t("employeeName")}: ${salaryDetails.employee_name || "—"}\n${t("payrollPeriod")}: ${periodLabel}\n${t("netPay")}: ${(salaryDetails.net_pay || 0).toLocaleString(language === "ar" ? "ar-SA" : "en-US")}`,
-          });
-        } else {
-          showToast(t("shareNotSupported"), "error");
-          return;
+      let blob: Blob | null = null;
+      if (selectedSalary) {
+        const printFormat = await getSalarySlipPrintFormat(selectedSalary, language);
+        if (printFormat) {
+          blob = await downloadSalarySlipPrintPdf(selectedSalary, printFormat, language);
+          console.log("[SalaryShare] Print format blob:", blob ? "size=" + blob.size : "null");
         }
-        showToast(t("salaryShared"), "success");
       }
+      if (!blob || blob.size < 100) {
+        console.log("[SalaryShare] Client-side PDF...");
+        const company = await getCompanyDetails();
+        const translatedForPdf = {
+          employeeName: translatedEmployeeName || salaryDetails.employee_name || "",
+          earnings: translatedEarnings.length ? translatedEarnings : (salaryDetails.earnings ?? []).map((e) => ({ component: e.salary_component, amount: e.amount })),
+          deductions: translatedDeductions.length ? translatedDeductions : (salaryDetails.deductions ?? []).map((d) => ({ component: d.salary_component, amount: d.amount })),
+          status: translatedStatus || (salaryDetails as any)?.status || "",
+          department: translatedDept || (salaryDetails as any)?.department || "",
+          designation: translatedDesig || (salaryDetails as any)?.designation || "",
+        };
+        blob = await pdfSaveAsBlob(company, salaryDetails, language as "en" | "ar", language === LANGUAGES.AR ? translatedForPdf : undefined);
+      }
+      if (!blob || blob.size < 100) {
+        showToast(t("unableToShareSalarySlip"), "error");
+        return;
+      }
+      const slipMonth = new Date(salaryDetails.start_date).toLocaleDateString(language === "ar" ? "ar-SA" : "en-US", { month: "long", year: "numeric" });
+      const fileName = "SalarySlip-" + slipMonth.replace(/ /g, "_") + ".pdf";
+      const displayName = translatedEmployeeName || salaryDetails.employee_name || "";
+      await saveAndShareBlob(blob, fileName, t("salarySlip"), t("salarySlip") + " - " + displayName);
+      showToast(t("salaryShared"), "success");
     } catch (e) {
       console.error("[Share Error]", e);
       showToast(t("unableToShareSalarySlip"), "error");
@@ -539,8 +705,7 @@ const SalaryPage = () => {
     }
   };
 
-  // ── Status badge colour map ─────────────────
-  const getStatusStyle = (status: string) => {
+const getStatusStyle = (status: string) => {
     const m: Record<string, { bg: string; text: string }> = {
       Submitted:  { bg: isDark ? "bg-green-900/40" : "bg-green-100", text: isDark ? "text-green-400"   : "text-green-700"   },
       Draft:      { bg: isDark ? "bg-yellow-900/40": "bg-yellow-100", text: isDark ? "text-yellow-400"  : "text-yellow-700"  },
@@ -549,17 +714,12 @@ const SalaryPage = () => {
     return m[status] || m.Submitted;
   };
 
-  // ─────────────────────────────────────────────
-  //   RENDER
-  // ─────────────────────────────────────────────
-
   const riyalImg = (cls: string) =>
     <img src={isDark ? "/images/riyalwhite.png" : "/images/riyaldark.png"} alt="Riyal" className={`h-${cls} w-${cls} inline-block align-middle mr-0.5`} />;
 
   const riyalCard = (size = "5") =>
     <img src={isDark ? "/images/riyalwhite.png" : "/images/riyaldark.png"} alt="Riyal" className={`h-${size} w-${size} inline-block align-middle mr-0.5`} />;
 
-  // ── Extra details from SalarySlipDetails (optional fields) ──
   const extraDetails: { label: string; value: React.ReactNode }[] = [
     {
       label: t("employeeId"),
@@ -581,15 +741,17 @@ const SalaryPage = () => {
     },
   ];
 
+  // Use translated name in display
+  const displayName = translatedEmployeeName || salaryDetails?.employee_name || "—";
+  const displayEarnings = translatedEarnings.length ? translatedEarnings : (salaryDetails?.earnings ?? []).map((e) => ({ component: e.salary_component, amount: e.amount }));
+  const displayDeductions = translatedDeductions.length ? translatedDeductions : (salaryDetails?.deductions ?? []).map((d) => ({ component: d.salary_component, amount: d.amount }));
+  const displayStatus = translatedStatus || (salaryDetails as any)?.status || "";
+
   return (
     <div className={`p-4 space-y-6 min-h-screen overflow-x-hidden transition-all ${isDark ? "bg-gray-900 text-white" : "bg-gray-50 text-gray-900"}`}>
 
-      {/* ========================================
-          HEADER + PULL-TO-REFRESH ANCHOR
-      ======================================== */}
       <div className="flex items-center justify-between">
         <h1 className={titleCls}>{t("salarySlip")}</h1>
-        {/* Web fallback refresh pill */}
         <button
           onClick={handleRefresh}
           disabled={loading || refreshing}
@@ -602,9 +764,6 @@ const SalaryPage = () => {
         </button>
       </div>
 
-      {/* ========================================
-          SALARY HERO — Take Home Pay
-      ======================================== */}
       {salaryDetails && !loading && (
         <motion.div
           initial={{ opacity: 0, y: 10 }}
@@ -614,16 +773,13 @@ const SalaryPage = () => {
         >
           <p className="text-sm opacity-80 mb-3">{t("takeHomePay")}</p>
           <div className="flex items-center justify-center gap-2 mb-2">
-            {/* <span className="h-5 w-5 opacity-90 flex items-center justify-center [&>svg]:h-5 [&>svg]:w-5">
-              {Icons.wallet}
-            </span> */}
             <span className="text-3xl font-bold">{riyalImg("6")}{(salaryDetails.net_pay || 0).toLocaleString(language === "ar" ? "ar-SA" : "en-US")}</span>
           </div>
           <div className="flex items-center justify-center gap-1 text-sm opacity-90 mb-1">
             <span className="h-4 w-4 flex items-center justify-center [&>svg]:h-4 [&>svg]:w-4">
               {Icons.person}
             </span>
-            <span>{salaryDetails.employee_name || "—"}</span>
+            <span>{displayName}</span>
           </div>
           <p className="text-xs opacity-75 flex items-center justify-center gap-1">
             <span className="h-4 w-4 flex items-center justify-center [&>svg]:h-4 [&>svg]:w-4">
@@ -638,19 +794,38 @@ const SalaryPage = () => {
         </motion.div>
       )}
 
-      {/* ========================================
-          ACTION BUTTONS  — Download / Share
-      ======================================== */}
       {salaryDetails && !loading && (
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.05 }}
-          className="grid grid-cols-2 gap-3"
+          className="grid grid-cols-3 gap-3"
         >
           <button
             type="button"
-            onClick={handleDownload}
+            onClick={handlePrintPreview}
+            disabled={downloading || sharing || printPreviewLoading}
+            className={`flex items-center justify-center gap-2 rounded-2xl py-3 text-sm font-medium shadow-md transition-all hover:scale-[1.02] disabled:opacity-60 disabled:pointer-events-none ${
+              isDark
+                ? "bg-amber-700/80 text-white hover:bg-amber-600"
+                : "bg-amber-500 text-white hover:bg-amber-600"
+            }`}
+          >
+            <span className={`h-4 w-4 ${printPreviewLoading ? "animate-spin" : ""}`}>
+              {printPreviewLoading ? (
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                  <path d="M21 12a9 9 0 1 1-6.22-8.56" />
+                </svg>
+              ) : (
+                Icons.doc
+              )}
+            </span>
+            {printPreviewLoading ? "Loading..." : "Preview"}
+          </button>
+
+          <button
+            type="button"
+            onClick={handleDownloadUsingPrintFormat}
             disabled={downloading || sharing}
             className={`flex items-center justify-center gap-2 rounded-2xl py-3 text-sm font-medium shadow-md transition-all hover:scale-[1.02] disabled:opacity-60 disabled:pointer-events-none ${
               isDark
@@ -659,12 +834,17 @@ const SalaryPage = () => {
             }`}
           >
             <span className={`h-4 w-4 ${downloading ? "animate-spin" : ""}`}>
-              {downloading
-                ? <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M21 12a9 9 0 1 1-6.22-8.56"/></svg>
-                : Icons.download}
+              {downloading ? (
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                  <path d="M21 12a9 9 0 1 1-6.22-8.56" />
+                </svg>
+              ) : (
+                Icons.download
+              )}
             </span>
             {downloading ? t("generating") : t("downloadSalarySlip")}
           </button>
+
           <button
             type="button"
             onClick={handleShare}
@@ -676,16 +856,19 @@ const SalaryPage = () => {
             }`}
           >
             <span className={`h-4 w-4 ${sharing ? "animate-spin" : ""}`}>
-              {sharing
-                ? <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M21 12a9 9 0 1 1-6.22-8.56"/></svg>
-                : Icons.share}
+              {sharing ? (
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                  <path d="M21 12a9 9 0 1 1-6.22-8.56" />
+                </svg>
+              ) : (
+                Icons.share
+              )}
             </span>
             {sharing ? t("preparing") : t("share")}
           </button>
         </motion.div>
       )}
 
-      {/* ── Action button loading skeletons ── */}
       {loading && (
         <div className="grid grid-cols-2 gap-3">
           <ButtonSkeleton isDark={isDark} />
@@ -693,9 +876,6 @@ const SalaryPage = () => {
         </div>
       )}
 
-      {/* ========================================
-          MONTH DROPDOWN
-      ======================================== */}
       <div className="relative" data-dropdown>
         <button
           type="button"
@@ -733,9 +913,6 @@ const SalaryPage = () => {
         </div>
       </div>
 
-      {/* ========================================
-          SALARY SLIP DROPDOWN
-      ======================================== */}
       <div className="relative" data-dropdown>
         <button
           type="button"
@@ -770,9 +947,6 @@ const SalaryPage = () => {
         </AnimatePresence>
       </div>
 
-      {/* ========================================
-          IMPROVED EMPTY STATE
-      ======================================== */}
       {!loading && filteredSalaryList.length === 0 && (
         <motion.div
           initial={{ opacity: 0, y: 10 }}
@@ -801,9 +975,6 @@ const SalaryPage = () => {
         </motion.div>
       )}
 
-      {/* ========================================
-          SUMMARY CARDS  — Gross Pay / Net Pay
-      ======================================== */}
       {loading ? (
         <div className="grid grid-cols-2 gap-3">
           <SummaryCardSkeleton isDark={isDark} />
@@ -843,9 +1014,6 @@ const SalaryPage = () => {
         </div>
       )}
 
-      {/* ========================================
-          SALARY DETAIL CARD
-      ======================================== */}
       {loading ? (
         <DetailSkeleton isDark={isDark} />
       ) : salaryDetails ? (
@@ -856,24 +1024,20 @@ const SalaryPage = () => {
             {t("salaryDetails")}
           </p>
           <div className="space-y-3">
-            {/* Employee Name */}
             <div className="flex justify-between gap-2">
               <span className={labelCls}>{t("employeeName")}</span>
-              <span className={`${valueCls} text-right break-all`}>{salaryDetails.employee_name || "—"}</span>
+              <span className={`${valueCls} text-right break-all`}>{displayName}</span>
             </div>
-            {/* Employee ID */}
             <div className="flex justify-between gap-2">
               <span className={labelCls}>{t("employeeId")}</span>
               <span className={`${valueCls} text-right font-mono text-xs break-all`}>
                 {(salaryDetails as any)?.employee || "—"}
               </span>
             </div>
-            {/* Salary Slip ID */}
             <div className="flex justify-between gap-2">
               <span className={labelCls}>{t("salarySlipId")}</span>
               <span className={`text-xs font-mono ${isDark ? "text-gray-300" : "text-gray-700"} text-right break-all`}>{salaryDetails.name}</span>
             </div>
-            {/* Posting Date */}
             <div className="flex justify-between gap-2">
               <span className={labelCls}>{t("postingDate")}</span>
               <span className={valueCls}>
@@ -882,35 +1046,41 @@ const SalaryPage = () => {
                   : "—"}
               </span>
             </div>
-            {/* Start Date */}
+            {translatedDept && (
+              <div className="flex justify-between gap-2">
+                <span className={labelCls}>{t("department") || "Department"}</span>
+                <span className={valueCls}>{translatedDept}</span>
+              </div>
+            )}
+            {translatedDesig && (
+              <div className="flex justify-between gap-2">
+                <span className={labelCls}>{t("designation") || "Designation"}</span>
+                <span className={valueCls}>{translatedDesig}</span>
+              </div>
+            )}
             <div className="flex justify-between gap-2">
               <span className={labelCls}>{t("startDate")}</span>
               <span className={valueCls}>{salaryDetails.start_date || "—"}</span>
             </div>
-            {/* End Date */}
             <div className="flex justify-between gap-2">
               <span className={labelCls}>{t("endDate")}</span>
               <span className={valueCls}>{salaryDetails.end_date || "—"}</span>
             </div>
-            {/* Payment Days */}
             <div className="flex justify-between gap-2">
               <span className={labelCls}>{t("paymentDays")}</span>
               <span className={valueCls}>{(salaryDetails as any)?.payment_days ?? "—"}</span>
             </div>
-            {/* Leave Without Pay */}
             <div className="flex justify-between gap-2">
               <span className={labelCls}>{t("leaveWithoutPay")}</span>
               <span className={valueCls}>{(salaryDetails as any)?.leave_without_pay ?? "—"}</span>
             </div>
-            {/* Status */}
             <div className="flex justify-between gap-2 items-center">
               <span className={labelCls}>{t("status")}</span>
               {(() => {
-                const s = (salaryDetails as any)?.status || "";
-                const style = getStatusStyle(s);
+                const style = getStatusStyle(displayStatus);
                 return (
                   <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${style.bg} ${style.text}`}>
-                    {s}
+                    {displayStatus}
                   </span>
                 );
               })()}
@@ -923,7 +1093,6 @@ const SalaryPage = () => {
         </div>
       )}
 
-      {/* ── EARNINGS skeleton ── */}
       {loading && (
         <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} className={cardCls}>
           <p className={`text-sm font-semibold uppercase tracking-wide mb-3 ${labelCls}`}>{t("earnings")}</p>
@@ -936,7 +1105,6 @@ const SalaryPage = () => {
         </motion.div>
       )}
 
-      {/* ── DEDUCTIONS skeleton ── */}
       {loading && (
         <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} className={cardCls}>
           <p className={`text-sm font-semibold uppercase tracking-wide mb-3 ${labelCls}`}>{t("deductions")}</p>
@@ -949,24 +1117,21 @@ const SalaryPage = () => {
         </motion.div>
       )}
 
-      {/* ========================================
-          EARNINGS
-      ======================================== */}
-      {loading ? null : salaryDetails?.earnings?.length ? (
+      {loading ? null : displayEarnings?.length ? (
         <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
           className={cardCls}
         >
           <p className={`text-sm font-semibold uppercase tracking-wide mb-3 ${labelCls}`}>{t("earnings")}</p>
           <hr className={isDark ? "border-gray-700" : "border-gray-200"} />
           <div className="space-y-0 pt-1">
-            {salaryDetails.earnings.map((item, idx) => (
+            {displayEarnings.map((item, idx) => (
               <motion.div key={`earn-${idx}`}
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: idx * 0.05 }}
                 className="flex justify-between py-2.5 hover:bg-indigo-50/50 -mx-5 px-5 rounded-lg transition-colors"
               >
-                <span className={labelCls}>{item.salary_component}</span>
+                <span className={labelCls}>{item.component}</span>
                 <span className={valueCls}>
                   {riyalImg("4")}
                   {item.amount.toLocaleString(language === "ar" ? "ar-SA" : "en-US")}
@@ -977,24 +1142,21 @@ const SalaryPage = () => {
         </motion.div>
       ) : null}
 
-      {/* ========================================
-          DEDUCTIONS
-      ======================================== */}
-      {loading ? null : salaryDetails?.deductions?.length ? (
+      {loading ? null : displayDeductions?.length ? (
         <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
           className={cardCls}
         >
           <p className={`text-sm font-semibold uppercase tracking-wide mb-3 ${labelCls}`}>{t("deductions")}</p>
           <hr className={isDark ? "border-gray-700" : "border-gray-200"} />
           <div className="space-y-0 pt-1">
-            {salaryDetails.deductions.map((item, idx) => (
+            {displayDeductions.map((item, idx) => (
               <motion.div key={`ded-${idx}`}
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: idx * 0.05 }}
                 className="flex justify-between py-2.5 hover:bg-indigo-50/50 -mx-5 px-5 rounded-lg transition-colors"
               >
-                <span className={labelCls}>{item.salary_component}</span>
+                <span className={labelCls}>{item.component}</span>
                 <span className={valueCls}>
                   {riyalImg("4")}
                   {item.amount.toLocaleString(language === "ar" ? "ar-SA" : "en-US")}
@@ -1005,7 +1167,6 @@ const SalaryPage = () => {
         </motion.div>
       ) : null}
 
-      {/* ── Toast notification ─── */}
       <AnimatePresence>
         {toast.visible && (
           <motion.div
@@ -1034,6 +1195,92 @@ const SalaryPage = () => {
                 {toast.message}
               </span>
             )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showPrintPreviewModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[300] flex items-center justify-center bg-black/70 p-4"
+            onClick={() => {
+              setShowPrintPreviewModal(false);
+              setPrintPreviewHtml(null);
+            }}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 300, damping: 25 }}
+              onClick={(e) => e.stopPropagation()}
+              className={`w-full max-w-4xl rounded-2xl overflow-hidden shadow-2xl ${
+                isDark ? "bg-gray-900" : "bg-white"
+              }`}
+            >
+              <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-gray-700">
+                <div>
+                  <h3 className="font-semibold text-lg">Salary Slip Preview</h3>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {usingPrintFormat ? "Using official Print Format" : "Fallback view"}
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowPrintPreviewModal(false);
+                    setPrintPreviewHtml(null);
+                  }}
+                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="p-4 max-h-[70vh] overflow-auto bg-white">
+                {printPreviewLoading ? (
+                  <div className="flex items-center justify-center h-64">
+                    <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-600"></div>
+                    <span className="ml-3 text-gray-600">Loading official preview...</span>
+                  </div>
+                ) : printPreviewHtml ? (
+                  <iframe
+                    srcDoc={printPreviewHtml}
+                    className="w-full min-h-[500px] border border-gray-200 rounded-lg"
+                    style={{ background: "white" }}
+                    title="Salary Slip Print Preview"
+                  />
+                ) : (
+                  <div className="text-center py-10 text-gray-500">
+                    Failed to load preview from Print Format.
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-3 p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
+                <button
+                  onClick={() => {
+                    setShowPrintPreviewModal(false);
+                    setPrintPreviewHtml(null);
+                  }}
+                  className="flex-1 py-3 rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-300"
+                >
+                  Close
+                </button>
+                <button
+                  onClick={async () => {
+                    setShowPrintPreviewModal(false);
+                    await handleDownloadUsingPrintFormat();
+                  }}
+                  disabled={downloading}
+                  className="flex-1 py-3 rounded-xl bg-indigo-600 text-white font-medium hover:bg-indigo-700 disabled:opacity-60"
+                >
+                  {downloading ? "Generating PDF..." : "Download PDF"}
+                </button>
+              </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>

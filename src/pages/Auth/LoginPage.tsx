@@ -162,8 +162,16 @@ const LoginPage = () => {
     try {
       console.log("[LoginPage] Calling login API...");
       await login({ companyUrl, userId, password });
-      console.log("[LoginPage] Login successful, redirecting to dashboard...");
-      navigate("/dashboard", { replace: true });
+      const loggedInUser = JSON.parse(localStorage.getItem("ess_user") || "{}");
+      const userType = loggedInUser.userType || "employee";
+      console.log("[LoginPage] Login successful, user_type:", userType);
+      if (userType === "admin") {
+        console.log("[LoginPage] Admin user detected, redirecting to admin panel...");
+        navigate("/admin", { replace: true });
+      } else {
+        console.log("[LoginPage] Employee user, redirecting to dashboard...");
+        navigate("/dashboard", { replace: true });
+      }
     } catch (err: any) {
       console.log("[LoginPage] Login failed:", err.message);
       // Parse and set the error with proper categorization

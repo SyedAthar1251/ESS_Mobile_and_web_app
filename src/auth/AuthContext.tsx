@@ -14,6 +14,7 @@ type AuthContextType = {
     companyUrl: string;
     apiKey?: string;
     apiSecret?: string;
+    userType?: string;
   } | null;
 };
 
@@ -30,6 +31,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     companyUrl: string;
     apiKey?: string;
     apiSecret?: string;
+    userType?: string;
   } | null>(null);
 
   // Check for existing session on mount
@@ -68,6 +70,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           companyUrl: credentials.companyUrl,
           apiKey: response.key_details?.api_key || "",
           apiSecret: response.key_details?.api_secret || "",
+          userType: response.user_type || "employee",
         };
 
         // Store user data

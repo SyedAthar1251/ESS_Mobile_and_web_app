@@ -1,16 +1,13 @@
 import { Capacitor } from "@capacitor/core";
 import axios from "axios";
 
-// Create axios instance for web
 const axiosApi = axios.create({
   timeout: 30000,
 });
 
-// Wrapper that works for both web and mobile
 const api = {
   async get<T>(url: string, options?: any): Promise<{ data: T; status: number }> {
     if (Capacitor.isNativePlatform()) {
-      // Use native fetch for mobile - simpler and more reliable
       try {
         const headers: Record<string, string> = {};
         if (options?.headers) {
@@ -18,15 +15,17 @@ const api = {
             headers[key] = value as string;
           });
         }
-        
+
         const response = await fetch(url, {
           method: 'GET',
           headers,
         });
-        
+
         let data: T;
         if (options?.responseType === 'blob') {
           data = await response.blob() as unknown as T;
+        } else if (options?.responseType === 'text') {
+          data = await response.text() as unknown as T;
         } else {
           data = await response.json() as T;
         }
@@ -36,7 +35,6 @@ const api = {
         throw new Error(`Network error: ${error.message}`);
       }
     } else {
-      // Use axios for web
       const result = await axiosApi.get(url, options);
       return { data: result.data as T, status: result.status };
     }
@@ -44,7 +42,6 @@ const api = {
 
   async post<T>(url: string, data?: any, options?: any): Promise<{ data: T; status: number }> {
     if (Capacitor.isNativePlatform()) {
-      // Use native fetch for mobile
       try {
         const headers: Record<string, string> = {};
         if (options?.headers) {
@@ -53,16 +50,9 @@ const api = {
           });
         }
 
-        // ── Determine body correctly ───────────────────────────────────────
-        // FormData (file uploads) must be passed raw — the fetch API
-        // will encode it as multipart/form-data with a boundary header.
-        // URLSearchParams (form-urlencoded) must also be passed raw —
-        // fetch will set the correct Content-Type with charset.
-        // Everything else (plain JS objects) goes through JSON.stringify.
         let body: BodyInit | undefined;
         if (data instanceof FormData) {
           body = data;
-          // Don't override the browser-set multipart boundary header
           delete headers['Content-Type'];
         } else if (data instanceof URLSearchParams) {
           body = data.toString();
@@ -82,7 +72,6 @@ const api = {
           body,
         });
 
-        // Check for HTTP errors
         if (!response.ok) {
           let errorData: any;
           try {
@@ -92,7 +81,6 @@ const api = {
           }
           console.error("[API] HTTP Error:", response.status, errorData);
 
-          // Throw error with server message if available
           const errorMessage = errorData?.exception || errorData?.error || errorData?.message || `HTTP Error: ${response.status}`;
           throw new Error(errorMessage);
         }
@@ -100,12 +88,13 @@ const api = {
         let responseData: T;
         if (options?.responseType === 'blob') {
           responseData = await response.blob() as unknown as T;
+        } else if (options?.responseType === 'text') {
+          responseData = await response.text() as unknown as T;
         } else {
           responseData = await response.json() as T;
         }
         return { data: responseData, status: response.status };
       } catch (error: any) {
-        // Re-throw if it's already an Error object from above
         if (error instanceof Error && error.message.includes('HTTP Error')) {
           throw error;
         }
@@ -113,7 +102,6 @@ const api = {
         throw new Error(`Network error: ${error.message}`);
       }
     } else {
-      // Use axios for web
       const result = await axiosApi.post(url, data, options);
       return { data: result.data as T, status: result.status };
     }

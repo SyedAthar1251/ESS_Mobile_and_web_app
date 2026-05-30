@@ -1,4 +1,4 @@
-import { useState, useEffect, ReactNode } from "react";
+import { useState, useEffect, ReactNode, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLanguage } from "../../i18n/LanguageContext";
 import { useTheme } from "../../store/ThemeContext";
@@ -11,10 +11,7 @@ import {
   LeaveTypeBalance,
   CreateLeaveApplicationRequest,
 } from "../../services/leave.service";
-
-// ============================================
-// Skeleton Loader Components
-// ============================================
+import { translateBatch, translateDynamic, shouldTranslate, LANGUAGES } from "../../services/translation.service";
 
 const StatCardSkeleton = () => (
   <div className="bg-gray-100 rounded-2xl p-4 text-center animate-pulse">
@@ -70,19 +67,13 @@ const ApplyFormSkeleton = () => (
   </div>
 );
 
-// ============================================
-// LeavePage Component
-// ============================================
-
 const LeavePage = () => {
   const { language, t } = useLanguage();
   const { theme } = useTheme();
 
-  // --- View / dropdown ---
   const [activeView, setActiveView] = useState<"list" | "balance" | "apply">("list");
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
-  // --- API data ---
   const [leaveTypes, setLeaveTypes] = useState<{ leave_type: string; closing_balance: number }[]>([]);
   const [leaveApplications, setLeaveApplications] = useState<LeaveApplication[]>([]);
   const [leaveBalance, setLeaveBalance] = useState<LeaveTypeBalance[]>([]);
@@ -90,7 +81,6 @@ const LeavePage = () => {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [listDisplayLimit, setListDisplayLimit] = useState(10);
 
-  // --- Apply form state ---
   const [formLeaveType, setFormLeaveType] = useState("");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
@@ -113,11 +103,18 @@ const LeavePage = () => {
   const [leaveIntentDropdownOpen, setLeaveIntentDropdownOpen] = useState(false);
   const [relationshipTypeDropdownOpen, setRelationshipTypeDropdownOpen] = useState(false);
 
-  // --- Leave Approver check (fetched before showing Apply form) ---
   const [leaveApprover, setLeaveApprover] = useState<string | null>(null);
   const [showNoApproverModal, setShowNoApproverModal] = useState(false);
 
-  // Close dropdowns when clicking outside
+  // ═══════════════════════════════════════════════════════════
+  //  TRANSLATION STATE  (dynamic API values only)
+  // ═══════════════════════════════════════════════════════════
+
+  const [translatedLeaveTypes, setTranslatedLeaveTypes] = useState<Record<string, string>>({});
+  const [translatedStatuses, setTranslatedStatuses] = useState<Record<string, string>>({});
+  const prevLangRef = useRef<string>(language);
+  const prevDataKeyRef = useRef<string>("");
+
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
@@ -131,11 +128,9 @@ const LeavePage = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // --- Leave detail popup ---
   const [selectedLeave, setSelectedLeave] = useState<LeaveApplication | null>(null);
   const [showDetail, setShowDetail] = useState(false);
 
-  // --- Toast notification ---
   const [toast, setToast] = useState<{
     message: string;
     type: "success" | "error";
@@ -144,7 +139,6 @@ const LeavePage = () => {
 
   useEffect(() => {
     if (!toast.visible) return;
-    // Errors persist until user closes them; success auto-dismisses after 5 s.
     const duration = toast.type === "error" ? 0 : 5000;
     const timer = duration > 0
       ? setTimeout(() => setToast((p) => ({ ...p, visible: false })), duration)
@@ -156,7 +150,79 @@ const LeavePage = () => {
     setToast({ message, type, visible: true });
   };
 
-   // --- Fetch all leave data on mount ---
+   // ── Translate dynamic API values ────────────────────────────
+  useEffect(() => {
+    if (language === LANGUAGES.EN) {
+      setTranslatedLeaveTypes({});
+      setTranslatedStatuses({});
+      return;
+    }
+
+    // Build a unique set of leave_type and status values to translate
+    const allLeaveTypes = new Set<string>();
+    const allStatuses = new Set<string>();
+
+    leaveApplications.forEach((app) => {
+      if (app.leave_type) allLeaveTypes.add(app.leave_type);
+      if (app.status) allStatuses.add(app.status);
+    });
+    leaveBalance.forEach((b) => {
+      if (b.leave_type) allLeaveTypes.add(b.leave_type);
+    });
+
+    const dataKey = `${language}|${[...allLeaveTypes].sort().join(",")}|${[...allStatuses].sort().join(",")}`;
+    if (dataKey === prevDataKeyRef.current) return;
+    prevDataKeyRef.current = dataKey;
+
+    if (allLeaveTypes.size === 0 && allStatuses.size === 0) return;
+
+    let cancelled = false;
+
+    const doTranslate = async () => {
+      try {
+        const typesToTranslate = [...allLeaveTypes].filter(shouldTranslate);
+        const statusesToTranslate = [...allStatuses].filter(shouldTranslate);
+
+        const [typeMap, statusMap] = await Promise.all([
+          typesToTranslate.length > 0 ? translateBatch(typesToTranslate, language) : Promise.resolve(new Map<string, string>()),
+          statusesToTranslate.length > 0 ? translateBatch(statusesToTranslate, language) : Promise.resolve(new Map<string, string>()),
+        ]);
+
+        if (cancelled) return;
+
+        const ltResult: Record<string, string> = {};
+        typeMap.forEach((v, k) => { ltResult[k] = v; });
+        setTranslatedLeaveTypes(ltResult);
+
+        const stResult: Record<string, string> = {};
+        statusMap.forEach((v, k) => { stResult[k] = v; });
+        setTranslatedStatuses(stResult);
+      } catch (err) {
+        console.error("[LeavePage Translation Error]", err);
+        if (!cancelled) {
+          setTranslatedLeaveTypes({});
+          setTranslatedStatuses({});
+        }
+      }
+    };
+
+    doTranslate();
+    return () => { cancelled = true; };
+  }, [leaveApplications, leaveBalance, language]);
+
+  // ── Helper to get translated leave type ─────────────────────
+  const getTranslatedLeaveType = (original: string): string => {
+    if (language === LANGUAGES.EN || !original) return original;
+    return translatedLeaveTypes[original] || original;
+  };
+
+  // ── Helper to get translated status ─────────────────────────
+  const getTranslatedStatus = (original: string): string => {
+    if (language === LANGUAGES.EN || !original) return original;
+    return translatedStatuses[original] || original;
+  };
+
+    // --- Fetch all leave data on mount ---
   useEffect(() => {
     let cancelled = false;
 
@@ -166,9 +232,6 @@ const LeavePage = () => {
         setLoading(true);
         setLoadError(null);
 
-        // get_leave_application_list returns balance[] which already contains
-        // leave_type + closing_balance — use it as the single source of truth.
-        // get_leave_type is a broken backend endpoint (HTTP 500), so we skip it.
         const listRes = await getLeaveApplicationList();
 
         if (cancelled) return;
@@ -176,8 +239,6 @@ const LeavePage = () => {
         if (listRes.data) {
           setLeaveBalance(listRes.data.balance || []);
           setLeaveApplications([...(listRes.data.upcoming || []), ...(listRes.data.taken || [])]);
-          // Derive leave types from balance[] so the dropdown is populated even
-          // without get_leave_type
           const derivedTypes = (listRes.data.balance || []).map((b: LeaveTypeBalance) => ({
             leave_type: b.leave_type,
             closing_balance: b.closing_balance,
@@ -200,12 +261,10 @@ const LeavePage = () => {
     };
   }, [activeView]);
 
-  // Reset pagination whenever the data changes (e.g. after a new submission)
   useEffect(() => {
     setListDisplayLimit(10);
   }, [leaveApplications.length]);
 
-  // ── Derived flags for conditional fields ──
   const isSickLeave = formLeaveType
     ?.trim()
     .toLowerCase()
@@ -231,7 +290,6 @@ const LeavePage = () => {
     isExaminationLeave ||
     isMarriageLeave;
 
-  // ── Dedicated leave-type selection handler (inline form) ──
   const handleLeaveTypeSelect = (leaveType: string) => {
     setFormLeaveType(leaveType);
     setLeaveTypeDropdownOpen(false);
@@ -244,7 +302,6 @@ const LeavePage = () => {
       .includes("sick leave");
   }, [formLeaveType]);
 
-  // --- Check leave approver before opening Apply form ---
   const handleApplyClick = async () => {
     console.log("[LeavePage] Apply button clicked — checking leave approver...");
     setDropdownOpen(false);
@@ -265,7 +322,7 @@ const LeavePage = () => {
     }
   };
 
-// --- Submit leave application ---
+  // --- Submit leave application ---
   const handleSubmit = async () => {
     console.log("=================================");
     console.log("[APPLY BUTTON CLICKED]");
@@ -292,7 +349,6 @@ const LeavePage = () => {
 
     setFormError(null);
 
-    // Base mandatory validations
     if (!formLeaveType) {
       setFormError(t("leaveTypeRequired") || "Leave type is required");
       return;
@@ -322,44 +378,37 @@ const LeavePage = () => {
       return;
     }
 
-    // Half day date validation
     if (isHalfDayDateRequired && !halfDayDate) {
       setFormError(t("halfDayDateRequired") || "Half-day date is required");
       return;
     }
 
-    // Maternity Leave validation
     if (isMaternityLeave && !customExpectedDeliveryDate) {
       setFormError(t("expectedDeliveryDateRequired") || "Expected delivery date is required");
       return;
     }
 
-    // Paternity Leave validation
     if (isPaternityLeave && !customChildBirthDate) {
       setFormError(t("childBirthDateRequired") || "Child birth date is required");
       return;
     }
 
-    // Bereavement Leave validation
     if (isBereavementLeave && !customRelationshipType) {
       setFormError(t("relationshipTypeRequired") || "Relationship type is required");
       return;
     }
 
-    // Sick Leave / Maternity Leave - Medical Certificate Proof
     const isSickLeaveVariant = isSickLeave || isMaternityLeave;
     if (isSickLeaveVariant && !customApprovedLeaveForm) {
       setFormError("Medical Certificate Proof is required");
       return;
     }
 
-    // Examination Leave - Enrollment Proof
     if (isExaminationLeave && !customEnrollmentProof) {
       setFormError("Enrollment Proof is required");
       return;
     }
 
-    // Marriage Leave - Marriage Proof
     if (isMarriageLeave && !customMarriageProof) {
       setFormError("Marriage Proof is required");
       return;
@@ -399,48 +448,45 @@ const LeavePage = () => {
       ...(customApprovedLeaveForm ? { custom_approved_leave_form: customApprovedLeaveForm } : {}),
       ...(customEnrollmentProof ? { custom_enrollment_proof: customEnrollmentProof } : {}),
       ...(customMarriageProof ? { custom_marriage_proof: customMarriageProof } : {}),
-      ...(leaveApprover ? { leave_approver: leaveApprover } : {}),
+      leave_approver: leaveApprover || undefined,
     };
-
-    console.log("[LeavePage] Final body for API:", {
-      ...body,
-    });
 
     try {
       setSubmitting(true);
-      const res = await createLeaveApplication(body);
+      if (customApprovedLeaveForm || customEnrollmentProof || customMarriageProof) {
+        const { createLeaveApplication: createWithFiles } = await import("../../services/leave.service");
+        await createWithFiles(body);
+      } else {
+        await createLeaveApplication(body);
+      }
 
-if (res.data?.name) {
-         showToast(t("submitSuccess") || "Leave application submitted successfully", "success");
-         // Reset form
-         setFormLeaveType("");
-         setFromDate("");
-         setToDate("");
-         setReason("");
-         setCustomLeaveIntent("");
-         setHandOverDate("");
-         setFirstDayReportToWork("");
-         setExcludePublicHolidays(true);
-         setHalfDay(false);
-         setHalfDayDate("");
-         setCustomExpectedDeliveryDate("");
-         setCustomChildBirthDate("");
-         setCustomRelationshipType("");
-         setCustomApprovedLeaveForm(null);
-         setCustomEnrollmentProof(null);
-          setCustomMarriageProof(null);
-        }
-        // Navigate back to the leave requests list
-        setActiveView("list");
-      } catch (err: any) {
+      showToast(t("leaveSubmitted") || "Leave application submitted successfully", "success");
+
+      setFormLeaveType("");
+      setFromDate("");
+      setToDate("");
+      setReason("");
+      setCustomLeaveIntent("");
+      setHandOverDate("");
+      setFirstDayReportToWork("");
+      setHalfDay(false);
+      setHalfDayDate("");
+      setCustomExpectedDeliveryDate("");
+      setCustomChildBirthDate("");
+      setCustomRelationshipType("");
+      setCustomApprovedLeaveForm(null);
+      setCustomEnrollmentProof(null);
+      setCustomMarriageProof(null);
+
+      setActiveView("list");
+    } catch (err: any) {
       console.error("[LeavePage] Submit error:", err);
-      showToast(err.message || t("submitError") || "Failed to submit leave application", "error");
+      setFormError(err.message || t("leaveSubmitError") || "Failed to submit leave application");
     } finally {
       setSubmitting(false);
     }
   };
 
-  // --- Date helpers ---
   const parseDDMMYYYY = (dateStr: string): Date => {
     const parts = dateStr.split("-");
     if (parts.length === 3) {
@@ -456,14 +502,6 @@ if (res.data?.name) {
       day: "numeric",
       month: "short",
       year: "numeric",
-    });
-  };
-
-  const formatDateShort = (dateStr: string) => {
-    const date = parseDDMMYYYY(dateStr);
-    return date.toLocaleDateString(language === "ar" ? "ar-SA" : "en-US", {
-      day: "numeric",
-      month: "short",
     });
   };
 
@@ -494,7 +532,6 @@ if (res.data?.name) {
     );
   };
 
-  // --- Filtered applications ---
   const upcomingApplications = leaveApplications.filter(
     (a) => a.from_date && parseDDMMYYYY(a.from_date) >= new Date(new Date().setHours(0, 0, 0, 0))
   );
@@ -502,39 +539,35 @@ if (res.data?.name) {
     (a) => a.from_date && parseDDMMYYYY(a.from_date) < new Date(new Date().setHours(0, 0, 0, 0))
   );
 
-  // --- Paginated list ---
   const allListItems = [...upcomingApplications, ...takenApplications];
   const totalItems = allListItems.length;
   const displayedUpcoming = upcomingApplications.slice(0, listDisplayLimit);
   const hasMore = totalItems > listDisplayLimit;
   const hitLimit = listDisplayLimit >= totalItems;
 
-  // --- Balance card display (derived from leaveBalance API) ---
-  // opening_balance = total allocated, closing_balance = remaining,
-  // leaves_taken = used. Show types where either balance is non-zero.
   const displayBalances =
     leaveBalance.length > 0
       ? leaveBalance
           .filter(
             (item) =>
-              (item.opening_balance ?? 0) > 0 ||
-              (item.closing_balance ?? 0) > 0
+              (item.opening_balance && item.opening_balance > 0) ||
+              (item.leaves_taken && item.leaves_taken > 0) ||
+              (item.closing_balance && item.closing_balance > 0),
           )
           .map((item) => ({
+            ...item,
+            allocated: item.opening_balance ?? 0,
+            used: item.leaves_taken ?? 0,
+            remaining: item.closing_balance ?? 0,
             leave_type: item.leave_type,
-            allocated: item.opening_balance || 0,
-            used: item.leaves_taken || 0,
-            remaining: item.closing_balance || 0,
           }))
       : [];
 
-  // Pending = leave applications whose status is "Open"
   const pendingLeaves =
     leaveApplications
       .filter((app) => app.status?.toLowerCase() === "open")
       .reduce((sum, app) => sum + (app.total_leave_days || 0), 0);
 
-  // --- Totals for statistics cards ---
   const totalAllocated = (displayBalances?.reduce((sum, item) => sum + (item.allocated || 0), 0) || 0);
   const totalUsed      = (displayBalances?.reduce((sum, item) => sum + (item.used      || 0), 0) || 0);
   const totalRemaining = (displayBalances?.reduce((sum, item) => sum + (item.remaining || 0), 0) || 0);
@@ -570,7 +603,6 @@ if (res.data?.name) {
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h1 className="text-xl font-bold text-gray-800">{t("leave") || "Leave"}</h1>
-          {/* Quick Apply button — navigate to apply view */}
           {activeView !== "apply" && (
             <button
               type="button"
@@ -608,10 +640,10 @@ if (res.data?.name) {
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.05 }}
-              className="bg-red-50 rounded-2xl p-4 text-center"
+              transition={{ delay: 0.1 }}
+              className="bg-indigo-50 rounded-2xl p-4 text-center"
             >
-              <p className="text-xl font-bold text-red-600">
+              <p className="text-xl font-bold text-indigo-600">
                 {totalUsed}
               </p>
               <p className="text-xs text-gray-500 mt-1">{t("used")}</p>
@@ -619,119 +651,114 @@ if (res.data?.name) {
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
-              className="bg-yellow-50 rounded-2xl p-4 text-center"
+              transition={{ delay: 0.2 }}
+              className="bg-indigo-50 rounded-2xl p-4 text-center"
             >
-              <p className="text-xl font-bold text-yellow-600">
-                {pendingLeaves}
+              <p className="text-xl font-bold text-indigo-600">
+                {Math.max(totalAllocated - totalUsed - totalRemaining, 0)}
               </p>
               <p className="text-xs text-gray-500 mt-1">{t("pending")}</p>
             </motion.div>
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.15 }}
-              className="bg-green-50 rounded-2xl p-4 text-center"
+              transition={{ delay: 0.3 }}
+              className="bg-indigo-50 rounded-2xl p-4 text-center"
             >
-              <p className="text-xl font-bold text-green-600">
+              <p className="text-xl font-bold text-indigo-600">
                 {totalRemaining}
               </p>
               <p className="text-xs text-gray-500 mt-1">{t("remaining")}</p>
             </motion.div>
           </div>
-        ) : (
-          <div className="text-sm text-gray-400 text-center py-4">
-            {t("noLeaveRequests")}
-          </div>
-        )}
-      </div>
+        ) : null}
 
-      {/* ── View Selector ── */}
-      <div className="relative">
-        <button
-          type="button"
-          onClick={() => {
-            console.log("[LeavePage] View selector toggle — wasOpen:", dropdownOpen);
-            setDropdownOpen(!dropdownOpen);
-          }}
-          className={`w-full shadow-lg p-4 flex items-center justify-between ${
-            theme === "neon-green" ? "neon-card" : "bg-white rounded-2xl"
-          }`}
-        >
-          <div className="flex items-center gap-3">
-            <span className="text-2xl">{viewOptions[0].icon}</span>
-            <span className="font-semibold text-gray-800">{viewOptions[0].label}</span>
-          </div>
-          <motion.span animate={{ rotate: dropdownOpen ? 180 : 0 }} className="text-gray-400">
-            ▼
-          </motion.span>
-        </button>
+        {/* Dropdown for view selection */}
+        <div className="relative" data-dropdown>
+          <button
+            type="button"
+            onClick={() => setDropdownOpen(!dropdownOpen)}
+            className="w-full bg-white rounded-2xl shadow-lg p-4 flex items-center justify-between"
+          >
+            <div className="flex items-center gap-3">
+              <span className="text-indigo-600">{viewOptions[0].icon}</span>
+              <span className="font-medium text-gray-800">{viewOptions[0].label}</span>
+            </div>
+            <svg
+              className={`w-5 h-5 text-gray-400 transition-transform ${dropdownOpen ? "rotate-180" : ""}`}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
 
-        <AnimatePresence>
-          {dropdownOpen && (
-            <>
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="fixed inset-0 z-10"
-                onClick={() => setDropdownOpen(false)}
-              />
-              <motion.ul
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-xl z-20 overflow-hidden"
-              >
-                <li>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      console.log("[LeavePage] View selected: myRequests");
-                      setActiveView("list");
-                      setDropdownOpen(false);
-                    }}
-                    className={`w-full p-4 flex items-center gap-3 hover:bg-indigo-50 transition-colors ${
-                      activeView === "list" ? "bg-indigo-50" : ""
-                    }`}
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                    </svg>
-                    <span className="font-medium text-gray-800">{t("myRequests")}</span>
-                    {activeView === "list" && <span className="ml-auto text-indigo-600">✓</span>}
-                  </button>
-                </li>
-                <li>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      console.log("[LeavePage] View selected: leaveBalance");
-                      setActiveView("balance");
-                      setDropdownOpen(false);
-                    }}
-                    className={`w-full p-4 flex items-center gap-3 hover:bg-indigo-50 transition-colors ${
-                      activeView === "balance" ? "bg-indigo-50" : ""
-                    }`}
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                    </svg>
-                    <span className="font-medium text-gray-800">{t("leaveBalance")}</span>
-                    {activeView === "balance" && <span className="ml-auto text-indigo-600">✓</span>}
-                  </button>
-                </li>
-              </motion.ul>
-            </>
-          )}
-        </AnimatePresence>
+          <AnimatePresence>
+            {dropdownOpen && (
+              <>
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="fixed inset-0 z-10"
+                  onClick={() => setDropdownOpen(false)}
+                />
+                <motion.ul
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-xl z-20 overflow-hidden"
+                >
+                  <li>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        console.log("[LeavePage] View selected: myRequests");
+                        setActiveView("list");
+                        setDropdownOpen(false);
+                      }}
+                      className={`w-full p-4 flex items-center gap-3 hover:bg-indigo-50 transition-colors ${
+                        activeView === "list" ? "bg-indigo-50" : ""
+                      }`}
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                      </svg>
+                      <span className="font-medium text-gray-800">{t("myRequests")}</span>
+                      {activeView === "list" && <span className="ml-auto text-indigo-600">✓</span>}
+                    </button>
+                  </li>
+                  <li>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        console.log("[LeavePage] View selected: leaveBalance");
+                        setActiveView("balance");
+                        setDropdownOpen(false);
+                      }}
+                      className={`w-full p-4 flex items-center gap-3 hover:bg-indigo-50 transition-colors ${
+                        activeView === "balance" ? "bg-indigo-50" : ""
+                      }`}
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                      </svg>
+                      <span className="font-medium text-gray-800">{t("leaveBalance")}</span>
+                      {activeView === "balance" && <span className="ml-auto text-indigo-600">✓</span>}
+                    </button>
+                  </li>
+                </motion.ul>
+              </>
+            )}
+          </AnimatePresence>
+        </div>
       </div>
 
       {/* ══════════════════════════════════════ */}
       {/* SECTION 1 & 2: Leave Requests Mini-List */}
       {/* ══════════════════════════════════════ */}
 
-      {/* Upcoming — only on "list" default view */}
       {activeView === "list" && !loading && (
         <div className={`shadow-lg ${theme === "neon-green" ? "neon-card" : "bg-white rounded-2xl"}`}>
           <div className="p-4 space-y-3">
@@ -756,7 +783,7 @@ if (res.data?.name) {
                   className={`p-3 rounded-xl cursor-pointer transition-colors hover:bg-indigo-50 ${idx < displayedUpcoming.length - 1 ? "" : ""}`}
                 >
                   <div className="flex items-start justify-between mb-1">
-                    <h4 className="font-medium text-gray-800 text-sm">{app.leave_type}</h4>
+                    <h4 className="font-medium text-gray-800 text-sm">{getTranslatedLeaveType(app.leave_type)}</h4>
                     {getStatusBadge(app.status)}
                   </div>
                   <p className="text-xs text-gray-500">
@@ -766,7 +793,6 @@ if (res.data?.name) {
               ))
             )}
 
-            {/* Load More / Show Less */}
             {hasMore && (
               <button
                 type="button"
@@ -780,7 +806,6 @@ if (res.data?.name) {
             )}
           </div>
 
-          {/* Taken section — always show all taken items */}
           {takenApplications.length > 0 && (
             <div className="p-4 border-t border-gray-100 space-y-3">
               <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">
@@ -796,7 +821,7 @@ if (res.data?.name) {
                   className="p-3 rounded-xl cursor-pointer hover:bg-indigo-50 transition-colors"
                 >
                   <div className="flex items-start justify-between mb-1">
-                    <h4 className="font-medium text-gray-800 text-sm">{app.leave_type}</h4>
+                    <h4 className="font-medium text-gray-800 text-sm">{getTranslatedLeaveType(app.leave_type)}</h4>
                     {getStatusBadge(app.status)}
                   </div>
                   <p className="text-xs text-gray-500">
@@ -835,7 +860,7 @@ if (res.data?.name) {
                   className="bg-white rounded-2xl shadow-lg p-4"
                 >
                   <h3 className="font-semibold text-gray-800 mb-3">
-                    {balance.leave_type}
+                    {getTranslatedLeaveType(balance.leave_type)}
                   </h3>
                   <div className="grid grid-cols-4 gap-2 text-center">
                     <div className="bg-gray-50 rounded-lg p-2">
@@ -862,7 +887,7 @@ if (res.data?.name) {
                       className="bg-indigo-600 h-2 rounded-full"
                       initial={{ width: 0 }}
                       animate={{ width: `${Math.min(pct, 100)}%` }}
-                      transition={{ delay: index * 0.1 + 0.2, duration: 0.4 }}
+                      transition={{ delay: index * 0.1 + 0.2, duration: 0.5 }}
                     />
                   </div>
                 </motion.div>
@@ -872,45 +897,34 @@ if (res.data?.name) {
         </div>
       )}
 
-      {/* ══════════════════════════════════════════════ */}
-      {/* APPLY LEAVE FORM                               */}
-      {/* ══════════════════════════════════════════════ */}
+      {/* ══════════════════════════════════════ */}
+      {/* SECTION 4: Apply Leave Form             */}
+      {/* ══════════════════════════════════════ */}
       {activeView === "apply" && (
-        <div
-          className={`shadow-lg p-4 space-y-4 relative overflow-visible ${
-            theme === "neon-green" ? "neon-card" : "bg-white rounded-2xl"
-          }`}
-        >
-          {/* Back button */}
-          <button
-            type="button"
-            onClick={() => {
-              setActiveView("list");
-              setFormError(null);
-            }}
-            className="flex items-center gap-1 text-sm text-indigo-600 hover:text-indigo-800 mb-2"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-            {t("back") || "Back"}
-          </button>
-
-          <h2 className="font-semibold text-gray-800">{t("newLeaveApplication")}</h2>
+        <div className={`shadow-lg ${theme === "neon-green" ? "neon-card" : "bg-white rounded-2xl"}`}>
+          <div className="p-4">
+            <div className="flex items-center gap-3 mb-4">
+              <button
+                type="button"
+                onClick={() => setActiveView("list")}
+                className="p-2 rounded-xl hover:bg-gray-100 transition-colors"
+              >
+                <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+              </button>
+              <h2 className="text-lg font-semibold text-gray-800">{t("applyLeave")}</h2>
+            </div>
 
             {loading ? (
               <ApplyFormSkeleton />
             ) : (
               <div className="space-y-4">
-                {/* ═══════════════════════════════ */}
-                {/* SECTION 1: Leave Details        */}
-                {/* ═══════════════════════════════ */}
               <div className="border-b border-gray-100 pb-4">
                 <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
                   {t("leaveDetails") || "Leave Details"}
                 </h3>
 
-                {/* ── Leave Type dropdown ── */}
                 <div className="relative w-full" data-dropdown>
                   <label className="block text-sm font-medium text-gray-600 mb-1">
                     {t("leaveType")}
@@ -922,7 +936,7 @@ if (res.data?.name) {
                     className="w-full p-3 border border-gray-200 rounded-xl bg-gray-50 text-left flex items-center justify-between"
                   >
                     <span className={formLeaveType ? "text-gray-800" : "text-gray-400"}>
-                      {formLeaveType || t("selectLeaveType")}
+                      {formLeaveType ? getTranslatedLeaveType(formLeaveType) : t("selectLeaveType")}
                       {formLeaveType && (() => {
                         const lt = leaveTypes.find((l) => l.leave_type === formLeaveType);
                         return lt != null ? ` (${t("available") || "Available"}: ${lt.closing_balance})` : "";
@@ -955,7 +969,7 @@ if (res.data?.name) {
                                 : "text-gray-700"
                             }`}
                           >
-                            {lt.leave_type}
+                            {getTranslatedLeaveType(lt.leave_type)}
                             <span className="float-right text-xs text-gray-400 mt-0.5">
                               {t("available") || "Available"}: {lt.closing_balance}
                             </span>
@@ -966,7 +980,6 @@ if (res.data?.name) {
                   )}
                 </div>
 
-{/* ── Leave Intent ── */}
                    <div className="mt-3 relative w-full" data-dropdown>
                       <label className="block text-sm font-medium text-gray-600 mb-1">
                          {t("customLeaveIntent") || "Leave Intent"}
@@ -1013,7 +1026,6 @@ if (res.data?.name) {
                       )}
                    </div>
 
-                  {/* ── Reason textarea ── */}
                   <div className="mt-3">
                     <label className="block text-sm font-medium text-gray-600 mb-1">
                       {t("reason")}
@@ -1028,15 +1040,11 @@ if (res.data?.name) {
                   </div>
                 </div>
 
-                {/* ═══════════════════════════════ */}
-                {/* SECTION 2: Leave Dates          */}
-                {/* ═══════════════════════════════ */}
                 <div className="border-b border-gray-100 pb-4">
                   <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
                     {t("leaveDates") || "Leave Dates"}
                   </h3>
 
-                 {/* ── Hand Over Date ── */}
                  <div className="mt-3">
                     <label className="block text-sm font-medium text-gray-600 mb-1">
                        {t("handOverDate") || "Hand Over Date"}
@@ -1050,7 +1058,6 @@ if (res.data?.name) {
                     />
                  </div>
 
-                  {/* ── From / To Date ── */}
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-600 mb-1">
@@ -1082,7 +1089,6 @@ if (res.data?.name) {
                     </div>
                 </div>
 
-                 {/* ── First Day Report to Work ── */}
                  <div className="mt-3">
                     <label className="block text-sm font-medium text-gray-600 mb-1">
                        {t("firstDayReportToWork") || "First Day Report to Work"}
@@ -1096,7 +1102,6 @@ if (res.data?.name) {
                     />
                  </div>
 
-                {/* ── Half Day toggle ── */}
                 <div className="flex items-center justify-between py-2 mt-3">
                   <span className="text-sm text-gray-600">{t("halfDay") || "Half Day"}</span>
                   <button
@@ -1126,7 +1131,6 @@ if (res.data?.name) {
                   </button>
                 </div>
 
-                {/* ── Half Day Date (conditional) ── */}
                 <AnimatePresence>
                   {isHalfDayDateRequired && (
                     <motion.div
@@ -1151,7 +1155,6 @@ if (res.data?.name) {
                   )}
                 </AnimatePresence>
 
-                {/* ── Exclude Public Holidays ── */}
                 <div className="flex items-center justify-between py-2 mt-3">
                   <span className="text-sm text-gray-600">{t("excludePublicHolidays") || "Exclude Public Holidays"}</span>
                   <button
@@ -1180,17 +1183,13 @@ if (res.data?.name) {
                     />
                   </button>
                 </div>
-                </div> {/* CLOSE SECTION 2 */}
+                </div>
 
-                {/* ═══════════════════════════════ */}
-               {/* SECTION 3: Additional Information */}
-               {/* ═══════════════════════════════ */}
                 <div className="border-b border-gray-100 pb-4">
                   <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
                     {t("additionalInformation") || "Additional Information"}
                   </h3>
 
-                {/* ── Maternity Leave: Expected Delivery Date ── */}
                 <AnimatePresence>
                   {isMaternityLeave && (
                     <motion.div
@@ -1213,7 +1212,6 @@ if (res.data?.name) {
                   )}
                 </AnimatePresence>
 
-                {/* ── Paternity Leave: Child Birth Date ── */}
                 <AnimatePresence>
                   {isPaternityLeave && (
                     <motion.div
@@ -1236,7 +1234,6 @@ if (res.data?.name) {
                   )}
                 </AnimatePresence>
 
-{/* ── Bereavement Leave: Relationship Type ── */}
                 <AnimatePresence>
                   {isBereavementLeave && (
                     <motion.div
@@ -1260,9 +1257,7 @@ if (res.data?.name) {
                           </span>
                           <svg
                             className={`w-5 h-5 text-gray-400 transition-transform ${relationshipTypeDropdownOpen ? "rotate-180" : ""}`}
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
+                            fill="none" stroke="currentColor" viewBox="0 0 24 24"
                           >
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                           </svg>
@@ -1299,9 +1294,6 @@ if (res.data?.name) {
                   </AnimatePresence>
                 </div>
 
-               {/* ═══════════════════════════════ */}
-               {/* SECTION 4: Attachments            */}
-               {/* ═══════════════════════════════ */}
               <AnimatePresence>
                 {shouldShowAttachments && (
                   <motion.div
@@ -1314,128 +1306,123 @@ if (res.data?.name) {
                       {t("attachments") || "Attachments"}
                     </h3>
 
-                 {/* ── Medical Certificate Proof (Sick/Maternity Leave) ── */}
-                <AnimatePresence>
-                  {(isSickLeave || isMaternityLeave) && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: "auto" }}
-                      exit={{ opacity: 0, height: 0 }}
-                      className="overflow-hidden mb-3"
-                    >
-                      <label className="block text-sm font-medium text-gray-600 mb-1">
-                        {t("medicalCertificateProof") || "Medical Certificate Proof"}
-                        <span className="text-red-500 ml-1">*</span>
-                      </label>
-                      <label className="block w-full p-3 border border-gray-200 rounded-xl bg-gray-50 cursor-pointer hover:bg-gray-100 transition-colors">
-                        <input
-                          type="file"
-                          className="hidden"
-                          accept=".pdf,.jpg,.jpeg,.png"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0] ?? null;
-                            console.log("[LeavePage] medical certificate onChange — file:", file ? file.name : "null");
-                            setCustomApprovedLeaveForm(file);
-                          }}
-                        />
-                        <span className="text-sm text-gray-600">
-                          {customApprovedLeaveForm ? customApprovedLeaveForm.name : t("chooseFile")}
-                        </span>
-                      </label>
-                      {customApprovedLeaveForm && (
-                        <p className="mt-1 text-xs text-green-600">
-                          {customApprovedLeaveForm.name}
-                        </p>
-                      )}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                  <AnimatePresence>
+                    {(isSickLeave || isMaternityLeave) && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="overflow-hidden mb-3"
+                      >
+                        <label className="block text-sm font-medium text-gray-600 mb-1">
+                          {t("medicalCertificateProof") || "Medical Certificate Proof"}
+                          <span className="text-red-500 ml-1">*</span>
+                        </label>
+                        <label className="block w-full p-3 border border-gray-200 rounded-xl bg-gray-50 cursor-pointer hover:bg-gray-100 transition-colors">
+                          <input
+                            type="file"
+                            className="hidden"
+                            accept=".pdf,.jpg,.jpeg,.png"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0] ?? null;
+                              console.log("[LeavePage] medical certificate onChange — file:", file ? file.name : "null");
+                              setCustomApprovedLeaveForm(file);
+                            }}
+                          />
+                          <span className="text-sm text-gray-600">
+                            {customApprovedLeaveForm ? customApprovedLeaveForm.name : t("chooseFile")}
+                          </span>
+                        </label>
+                        {customApprovedLeaveForm && (
+                          <p className="mt-1 text-xs text-green-600">
+                            {customApprovedLeaveForm.name}
+                          </p>
+                        )}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
 
-                {/* ── Enrollment Proof (Examination Leave) ── */}
-                <AnimatePresence>
-                  {isExaminationLeave && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: "auto" }}
-                      exit={{ opacity: 0, height: 0 }}
-                      className="overflow-hidden mb-3"
-                    >
-                      <label className="block text-sm font-medium text-gray-600 mb-1">
-                        {t("enrollmentProof") || "Enrollment Proof"}
-                        <span className="text-red-500 ml-1">*</span>
-                      </label>
-                      <label className="block w-full p-3 border border-gray-200 rounded-xl bg-gray-50 cursor-pointer hover:bg-gray-100 transition-colors">
-                        <input
-                          type="file"
-                          className="hidden"
-                          accept=".pdf,.jpg,.jpeg,.png"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0] ?? null;
-                            console.log("[LeavePage] enrollment proof onChange — file:", file ? file.name : "null");
-                            setCustomEnrollmentProof(file);
-                          }}
-                        />
-                        <span className="text-sm text-gray-600">
-                          {customEnrollmentProof ? customEnrollmentProof.name : t("chooseFile")}
-                        </span>
-                      </label>
-                      {customEnrollmentProof && (
-                        <p className="mt-1 text-xs text-green-600">
-                          {customEnrollmentProof.name}
-                        </p>
-                      )}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                  <AnimatePresence>
+                    {isExaminationLeave && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="overflow-hidden mb-3"
+                      >
+                        <label className="block text-sm font-medium text-gray-600 mb-1">
+                          {t("enrollmentProof") || "Enrollment Proof"}
+                          <span className="text-red-500 ml-1">*</span>
+                        </label>
+                        <label className="block w-full p-3 border border-gray-200 rounded-xl bg-gray-50 cursor-pointer hover:bg-gray-100 transition-colors">
+                          <input
+                            type="file"
+                            className="hidden"
+                            accept=".pdf,.jpg,.jpeg,.png"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0] ?? null;
+                              console.log("[LeavePage] enrollment proof onChange — file:", file ? file.name : "null");
+                              setCustomEnrollmentProof(file);
+                            }}
+                          />
+                          <span className="text-sm text-gray-600">
+                            {customEnrollmentProof ? customEnrollmentProof.name : t("chooseFile")}
+                          </span>
+                        </label>
+                        {customEnrollmentProof && (
+                          <p className="mt-1 text-xs text-green-600">
+                            {customEnrollmentProof.name}
+                          </p>
+                        )}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
 
-                {/* ── Marriage Proof (Marriage Leave) ── */}
-                <AnimatePresence>
-                  {isMarriageLeave && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: "auto" }}
-                      exit={{ opacity: 0, height: 0 }}
-                      className="overflow-hidden mb-3"
-                    >
-                      <label className="block text-sm font-medium text-gray-600 mb-1">
-                        {t("marriageProof") || "Marriage Proof"}
-                        <span className="text-red-500 ml-1">*</span>
-                      </label>
-                      <label className="block w-full p-3 border border-gray-200 rounded-xl bg-gray-50 cursor-pointer hover:bg-gray-100 transition-colors">
-                        <input
-                          type="file"
-                          className="hidden"
-                          accept=".pdf,.jpg,.jpeg,.png"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0] ?? null;
-                            console.log("[LeavePage] marriage proof onChange — file:", file ? file.name : "null");
-                            setCustomMarriageProof(file);
-                          }}
-                        />
-                        <span className="text-sm text-gray-600">
-                          {customMarriageProof ? customMarriageProof.name : t("chooseFile")}
-                        </span>
-                      </label>
-                      {customMarriageProof && (
-                        <p className="mt-1 text-xs text-green-600">
-                          {customMarriageProof.name}
-                        </p>
-                      )}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-                </motion.div>
+                  <AnimatePresence>
+                    {isMarriageLeave && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="overflow-hidden mb-3"
+                      >
+                        <label className="block text-sm font-medium text-gray-600 mb-1">
+                          {t("marriageProof") || "Marriage Proof"}
+                          <span className="text-red-500 ml-1">*</span>
+                        </label>
+                        <label className="block w-full p-3 border border-gray-200 rounded-xl bg-gray-50 cursor-pointer hover:bg-gray-100 transition-colors">
+                          <input
+                            type="file"
+                            className="hidden"
+                            accept=".pdf,.jpg,.jpeg,.png"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0] ?? null;
+                              console.log("[LeavePage] marriage proof onChange — file:", file ? file.name : "null");
+                              setCustomMarriageProof(file);
+                            }}
+                          />
+                          <span className="text-sm text-gray-600">
+                            {customMarriageProof ? customMarriageProof.name : t("chooseFile")}
+                          </span>
+                        </label>
+                        {customMarriageProof && (
+                          <p className="mt-1 text-xs text-green-600">
+                            {customMarriageProof.name}
+                          </p>
+                        )}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                  </motion.div>
                 )}
               </AnimatePresence>
 
-              {/* ── Inline form error ── */}
               {formError && (
                 <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">
                   {formError}
                 </p>
               )}
 
-              {/* ── Submit button ── */}
               <button
                 type="button"
                 onClick={handleSubmit}
@@ -1448,11 +1435,10 @@ if (res.data?.name) {
                 </button>
               </div>
             )}
-          
-         </div>   
+         </div>
+        </div>
       )}
 
-      {/* ── Toast / Error modal notification ── */}
       <AnimatePresence>
         {toast.visible && (
           <motion.div
@@ -1473,7 +1459,6 @@ if (res.data?.name) {
                   : "bg-white text-slate-900 border border-gray-200"
               }`}
             >
-              {/* ── Title + close button ── */}
               <div className="flex items-start justify-between gap-3">
                 <p className={`mt-0.5 text-sm font-semibold leading-snug ${
                   toast.type === "error"
@@ -1498,7 +1483,6 @@ if (res.data?.name) {
         )}
       </AnimatePresence>
 
-      {/* ── Blocking Modal: Leave Approver Not Found ── */}
       <AnimatePresence>
         {showNoApproverModal && (
           <motion.div
@@ -1541,13 +1525,9 @@ if (res.data?.name) {
         )}
       </AnimatePresence>
 
-      {/* ═══════════════════════════════════════ */}
-      {/* LEAVE DETAIL POPUP                      */}
-      {/* ═══════════════════════════════════════ */}
       <AnimatePresence>
         {showDetail && selectedLeave && (
           <>
-            {/* Backdrop */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -1564,11 +1544,10 @@ if (res.data?.name) {
                 onClick={(e) => e.stopPropagation()}
                 className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden"
               >
-                {/* Header */}
                 <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
                   <div>
                     <h3 className="font-semibold text-gray-800 text-base">
-                      {selectedLeave.leave_type}
+                      {getTranslatedLeaveType(selectedLeave.leave_type)}
                     </h3>
                     <p className="text-xs text-gray-400 mt-0.5">
                       {selectedLeave.name}
@@ -1585,12 +1564,11 @@ if (res.data?.name) {
                   </button>
                 </div>
 
-                {/* Detail rows */}
                 <div className="px-5 py-4 space-y-3">
-                  <DetailRow label={t("leaveType") || "Leave Type"} value={selectedLeave.leave_type} />
+                  <DetailRow label={t("leaveType") || "Leave Type"} value={getTranslatedLeaveType(selectedLeave.leave_type)} />
                   <DetailRow
                     label={t("status") || "Status"}
-                    value={<span className={selectedLeave.status === "Approved" ? "text-green-600" : selectedLeave.status === "Rejected" ? "text-red-600" : "text-yellow-600"}>{selectedLeave.status}</span>}
+                    value={<span className={selectedLeave.status === "Approved" ? "text-green-600" : selectedLeave.status === "Rejected" ? "text-red-600" : "text-yellow-600"}>{getTranslatedStatus(selectedLeave.status)}</span>}
                   />
                   <DetailRow
                     label={t("fromDate") || "From"}
@@ -1626,7 +1604,6 @@ if (res.data?.name) {
   );
 };
 
-/* ── Detail row helper ── */
 const DetailRow = ({
   label,
   value,
