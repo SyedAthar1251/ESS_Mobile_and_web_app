@@ -4,6 +4,11 @@ import { useLanguage } from "../../i18n/LanguageContext";
 import { useAuth } from "../../auth/useAuth";
 import { useTheme } from "../../store/ThemeContext";
 import { getEmployeeCheckinList, getCheckinDetail, CheckinListItem, EmployeeCheckin, getAttendanceList, AttendanceDetails, AttendanceListItem } from "../../services/attendance.service";
+import {
+  EMPLOYEE_PAGE_CONTAINER,
+  getPageCardStyle,
+  getListItemCardClass,
+} from "../../utils/pageCardStyles";
 
 const arabicDigits = "٠١٢٣٤٥٦٧٨٩";
 
@@ -504,7 +509,7 @@ const AttendancePage = () => {
   }
 
   return (
-    <div className="p-4 space-y-6">
+    <div className={EMPLOYEE_PAGE_CONTAINER}>
       {/* Header, Calendar & Dashboard Stats */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
@@ -522,7 +527,7 @@ const AttendancePage = () => {
         </div>
 
         {/* Calendar Card */}
-        <div className={`rounded-3xl shadow-lg p-4 ${theme === "neon-green" ? "neon-card" : "bg-white"}`}>
+        <div className={`${getPageCardStyle(theme)} p-4`}>
           <div className="flex items-center justify-between mb-4">
             <button
               onClick={() =>
@@ -657,7 +662,7 @@ const AttendancePage = () => {
       <div className="relative">
         <button
           onClick={() => setDropdownOpen(!dropdownOpen)}
-          className={`w-full shadow-lg p-4 flex items-center justify-between ${theme === 'neon-green' ? 'neon-card' : 'bg-white rounded-2xl'}`}
+          className={`w-full ${getPageCardStyle(theme)} p-4 flex items-center justify-between`}
         >
           <div className="flex items-center gap-3">
             <span className="text-2xl">{currentOption?.icon}</span>
@@ -718,21 +723,21 @@ const AttendancePage = () => {
 
       {/* Content based on selected view */}
       {activeView === "attendance_list" && (
-        <div className={`rounded-3xl shadow-lg overflow-hidden ${theme === 'neon-green' ? 'neon-card' : 'bg-white'}`}>
-          <div className="p-4 border-b border-gray-100">
-            <h2 className="font-semibold text-gray-700">{t("attendanceHistory")}</h2>
-          </div>
+        <div className="space-y-4">
+          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">
+            {t("attendanceHistory")}
+          </h2>
 
           {attendanceLoading ? (
-            <div className="p-8 text-center">
+            <div className={`${getPageCardStyle(theme)} p-8 text-center`}>
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto"></div>
             </div>
           ) : getFilteredAttendanceList().length === 0 ? (
-            <div className="p-8 text-center text-gray-500">
+            <div className={`${getPageCardStyle(theme)} p-8 text-center text-gray-500`}>
               <p>{t("noAttendanceRecords")}</p>
             </div>
           ) : (
-            <div className="divide-y divide-gray-100">
+            <div className="space-y-3">
               {paginatedAttendanceList.map((item, index) => (
                 <motion.div
                   key={item.attendance_date}
@@ -740,7 +745,7 @@ const AttendancePage = () => {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.05 }}
                   onClick={() => setSelectedAttendanceDate(item)}
-                  className="p-4 hover:bg-indigo-50 cursor-pointer transition-colors"
+                  className={getListItemCardClass(theme)}
                 >
                   <div className="flex items-center justify-between">
                     {/* Date */}
@@ -785,26 +790,22 @@ const AttendancePage = () => {
               
               {/* Load More Button */}
               {hasMoreAttendance && (
-                <div className="p-4 border-t border-gray-100">
-                  <button
-                    onClick={() => setAttendancePage(prev => prev + 1)}
-                    className="w-full py-2 px-4 bg-indigo-50 text-indigo-600 font-medium rounded-xl hover:bg-indigo-100 transition-colors text-sm"
-                  >
-                    Load More ({filteredAttendanceList.length - paginatedAttendanceList.length} more)
-                  </button>
-                </div>
+                <button
+                  onClick={() => setAttendancePage(prev => prev + 1)}
+                  className="w-full py-2 px-4 bg-indigo-50 text-indigo-600 font-medium rounded-xl hover:bg-indigo-100 transition-colors text-sm"
+                >
+                  Load More ({filteredAttendanceList.length - paginatedAttendanceList.length} more)
+                </button>
               )}
               
               {/* View Less Button */}
               {attendancePage > 1 && (
-                <div className="p-4 border-t border-gray-100">
-                  <button
-                    onClick={() => setAttendancePage(1)}
-                    className="w-full py-2 px-4 bg-gray-100 text-gray-600 font-medium rounded-xl hover:bg-gray-200 transition-colors text-sm"
-                  >
-                    View Less
-                  </button>
-                </div>
+                <button
+                  onClick={() => setAttendancePage(1)}
+                  className="w-full py-2 px-4 bg-gray-100 text-gray-600 font-medium rounded-xl hover:bg-gray-200 transition-colors text-sm"
+                >
+                  View Less
+                </button>
               )}
             </div>
           )}
@@ -812,17 +813,17 @@ const AttendancePage = () => {
       )}
 
       {activeView === "checkins_list" && (
-        <div className={`rounded-3xl shadow-lg overflow-hidden ${theme === 'neon-green' ? 'neon-card' : 'bg-white'}`}>
-          <div className="p-4 border-b border-gray-100">
-            <h2 className="font-semibold text-gray-700">{t("checkInsCheckOuts")}</h2>
-          </div>
+        <div className="space-y-4">
+          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">
+            {t("checkInsCheckOuts")}
+          </h2>
 
           {checkinList.length === 0 ? (
-            <div className="p-8 text-center text-gray-500">
+            <div className={`${getPageCardStyle(theme)} p-8 text-center text-gray-500`}>
               <p>{t("noCheckinRecords")}</p>
             </div>
           ) : (
-            <div className="divide-y divide-gray-100">
+            <div className="space-y-3">
               {paginatedCheckins.map((item, index) => (
                 <motion.div
                   key={item.name}
@@ -830,7 +831,7 @@ const AttendancePage = () => {
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: index * 0.05 }}
                   onClick={() => handleCheckinClick(item.name)}
-                  className="p-4 hover:bg-indigo-50 cursor-pointer transition-colors"
+                  className={getListItemCardClass(theme)}
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
@@ -863,26 +864,22 @@ const AttendancePage = () => {
               
               {/* Load More Button */}
               {hasMoreCheckins && (
-                <div className="p-4 border-t border-gray-100">
-                  <button
-                    onClick={() => setCheckinPage(prev => prev + 1)}
-                    className="w-full py-2 px-4 bg-indigo-50 text-indigo-600 font-medium rounded-xl hover:bg-indigo-100 transition-colors text-sm"
-                  >
-                    Load More ({checkinList.length - paginatedCheckins.length} more)
-                  </button>
-                </div>
+                <button
+                  onClick={() => setCheckinPage(prev => prev + 1)}
+                  className="w-full py-2 px-4 bg-indigo-50 text-indigo-600 font-medium rounded-xl hover:bg-indigo-100 transition-colors text-sm"
+                >
+                  Load More ({checkinList.length - paginatedCheckins.length} more)
+                </button>
               )}
               
               {/* View Less Button */}
               {checkinPage > 1 && (
-                <div className="p-4 border-t border-gray-100">
-                  <button
-                    onClick={() => setCheckinPage(1)}
-                    className="w-full py-2 px-4 bg-gray-100 text-gray-600 font-medium rounded-xl hover:bg-gray-200 transition-colors text-sm"
-                  >
-                    View Less
-                  </button>
-                </div>
+                <button
+                  onClick={() => setCheckinPage(1)}
+                  className="w-full py-2 px-4 bg-gray-100 text-gray-600 font-medium rounded-xl hover:bg-gray-200 transition-colors text-sm"
+                >
+                  View Less
+                </button>
               )}
             </div>
           )}

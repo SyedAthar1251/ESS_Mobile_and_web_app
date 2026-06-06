@@ -20,6 +20,10 @@
   "salaryForMonth": "Your salary for January has been credited to your account.",
   "rememberToCheckin": "Please remember to check in today before",
   "expenseClaimRejected": "Your expense claim for has been rejected.",
-  "error": "Error",
-  "retry": "Retry"
+  "retry": "Retry",
+  "refresh": "Refresh",
+  "viewAllNotifications": "View All Notifications",
+  "pullToRefresh": "Pull to refresh",
+  "releaseToRefresh": "Release to refresh",
+  "refreshing": "Refreshing..."
 }

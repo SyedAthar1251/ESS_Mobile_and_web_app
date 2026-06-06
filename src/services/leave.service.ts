@@ -553,3 +553,113 @@ export const getLeaveApplicationList = async (): Promise<LeaveApplicationListRes
   }
 };
 
+// ============================================
+// Leave Application Detail
+// ============================================
+
+export interface LeaveApplicationDetail {
+  name: string;
+  employee: string;
+  employee_name: string;
+  leave_type: string;
+  from_date: string;
+  to_date: string;
+  total_leave_days: number;
+  status: string;
+  posting_date: string;
+  description: string | null;
+  leave_approver: string;
+}
+
+export const getLeaveApplicationDetail = async (
+  name: string,
+): Promise<LeaveApplicationDetail | null> => {
+  const { companyUrl, apiKey, apiSecret } = getUserCredentials();
+  const cleanUrl = companyUrl.replace(/\/$/, "");
+
+  const fields = encodeURIComponent(JSON.stringify([
+    "name", "employee", "employee_name", "leave_type",
+    "from_date", "to_date", "total_leave_days", "status",
+    "posting_date", "description", "leave_approver",
+  ]));
+
+  const apiUrl = `${cleanUrl}/api/resource/Leave%20Application/${encodeURIComponent(name)}?fields=${fields}`;
+
+  try {
+    const response = await api.get<{ data: LeaveApplicationDetail }>(apiUrl, {
+      headers: {
+        "Content-Type": "application/json",
+        ...getAuthHeader(apiKey, apiSecret),
+      },
+    });
+    return response.data?.data || null;
+  } catch (error: any) {
+    console.error("[LeaveService] Failed to fetch leave application detail:", error);
+    return null;
+  }
+};
+
+export const getUserDisplayName = async (userId: string): Promise<string> => {
+  if (!userId) return "";
+  const { companyUrl, apiKey, apiSecret } = getUserCredentials();
+  const cleanUrl = companyUrl.replace(/\/$/, "");
+  const fields = encodeURIComponent(JSON.stringify(["full_name"]));
+  const apiUrl = `${cleanUrl}/api/resource/User/${encodeURIComponent(userId)}?fields=${fields}`;
+
+  try {
+    const response = await api.get<{ data: { full_name?: string } }>(apiUrl, {
+      headers: {
+        "Content-Type": "application/json",
+        ...getAuthHeader(apiKey, apiSecret),
+      },
+    });
+    return response.data?.data?.full_name || userId;
+  } catch {
+    return userId;
+  }
+};
+
+// ============================================
+// Workflow Timeline
+// ============================================
+
+export interface WorkflowTimelineResponse {
+  success: boolean;
+  has_workflow: boolean;
+  workflow_name?: string;
+  current_state?: string;
+  current_status?: string;
+  timeline?: {
+    state: string;
+    status: "completed" | "current" | "pending";
+    action_by?: string | null;
+    action_at?: string | null;
+  }[];
+  pending_roles?: string[];
+  is_final_state?: boolean;
+}
+
+export const getWorkflowTimeline = async (
+  doctype: string,
+  docname: string
+): Promise<WorkflowTimelineResponse | null> => {
+  const { companyUrl, apiKey, apiSecret } = getUserCredentials();
+
+  const cleanUrl = companyUrl.replace(/\/$/, "");
+  const apiUrl = `${cleanUrl}/api/method/employee_self_service.mobile.ess.get_workflow_timeline?doctype=${encodeURIComponent(doctype)}&docname=${encodeURIComponent(docname)}`;
+
+  try {
+    const response = await api.get<{ message: WorkflowTimelineResponse }>(apiUrl, {
+      headers: {
+        "Content-Type": "application/json",
+        ...getAuthHeader(apiKey, apiSecret),
+      },
+      timeout: 15000,
+    });
+    return response.data.message;
+  } catch (error: any) {
+    console.error("[LeaveService] Failed to fetch workflow timeline:", error);
+    return null;
+  }
+};
+

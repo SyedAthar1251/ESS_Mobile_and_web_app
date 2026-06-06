@@ -1,4 +1,6 @@
 import api from "./api";
+import { Geolocation } from "@capacitor/geolocation";
+import { Capacitor } from "@capacitor/core";
 
 // DUMMY MODE - Set to true to bypass API calls for development
 const DUMMY_MODE = false;
@@ -80,11 +82,22 @@ const getUserCredentials = (): { companyUrl: string; apiKey: string; apiSecret: 
   throw new Error("Authentication credentials not found. Please login again.");
 };
 
-// Get authorization header with API key and secret
 const getAuthHeader = (apiKey: string, apiSecret: string) => {
-  // Frappe expects: "token api_key:api_secret"
   return {
     Authorization: `token ${apiKey}:${apiSecret}`,
+  };
+};
+
+const getMobileError = (error: any): { message: string; status: number } => {
+  if (error?.response?.status) {
+    return {
+      message: error.response?.data?.exception || error.response?.data?.message || error.message || "Request failed",
+      status: error.response.status,
+    };
+  }
+  return {
+    message: error?.message || "Network error",
+    status: error?.status || 0,
   };
 };
 
@@ -92,19 +105,47 @@ const getAuthHeader = (apiKey: string, apiSecret: string) => {
 // PUNCH IN / PUNCH OUT API
 // ============================================
 
+const parseGPSCoordinates = (location: string): { latitude: number; longitude: number } | null => {
+  if (!location) return null;
+  if (location.includes(",")) {
+    const parts = location.split(",").map(s => s.trim());
+    const lat = parseFloat(parts[0]);
+    const lng = parseFloat(parts[1]);
+    if (!isNaN(lat) && !isNaN(lng)) {
+      return { latitude: lat, longitude: lng };
+    }
+  }
+  return null;
+};
+
+const getCurrentLocation = async (): Promise<{ latitude: number; longitude: number }> => {
+  if (Capacitor.isNativePlatform()) {
+    try {
+      const position = await Geolocation.getCurrentPosition();
+      return {
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+      };
+    } catch (error: any) {
+      console.error("[Attendance] Geolocation error:", error);
+      throw new Error("Unable to get your location. Please enable location permissions and try again.");
+    }
+  }
+  throw new Error("Location services are only available on mobile devices.");
+};
+
 // Create employee log (Punch In / Punch Out)
 export const createEmployeeLog = async (
   logType: "IN" | "OUT",
   location?: string
 ): Promise<CreateEmployeeLogResponse> => {
   const { companyUrl, apiKey, apiSecret } = getUserCredentials();
-  
-  console.log("[AttendanceService] Creating employee log:", logType);
-  console.log("[AttendanceService] Location:", location);
 
-  // DUMMY MODE - Return fake success for development
+  console.log("[Attendance] Creating employee log:", logType);
+  console.log("[Attendance] Location:", location);
+
   if (DUMMY_MODE) {
-    console.log("[AttendanceService] DUMMY MODE - Returning fake punch success");
+    console.log("[Attendance] DUMMY MODE - Returning fake punch success");
     return {
       message: "Checkin recorded successfully",
       data: {
@@ -115,11 +156,11 @@ export const createEmployeeLog = async (
         modified_by: "Administrator",
         docstatus: 1,
         idx: 1,
-        employee: "TS-EMP-00005",
+        employee: "DUMMY",
         employee_name: "Test User",
         log_type: logType,
         shift: "test shift",
-        custom_checkin_location:"Home",
+        custom_checkin_location: "Home",
         time: new Date().toISOString(),
         office_hours: "8",
         lunch_break: "1",
@@ -134,74 +175,61 @@ export const createEmployeeLog = async (
     };
   }
 
-  const cleanUrl = companyUrl.replace(/\/$/, "");
-  
-  // Parse latitude and longitude from location string
   let latitude = 0;
   let longitude = 0;
-  let locationName = "Office";
-  
-  if (location && location.includes(",")) {
-    const parts = location.split(",").map(s => s.trim());
-    latitude = parseFloat(parts[0]) || 0;
-    longitude = parseFloat(parts[1]) || 0;
-    locationName = "Home";
-  } else if (location) {
-    locationName = location;
+
+  const coords = parseGPSCoordinates(location || "");
+  if (coords) {
+    latitude = coords.latitude;
+    longitude = coords.longitude;
+  } else if (Capacitor.isNativePlatform()) {
+    try {
+      const pos = await getCurrentLocation();
+      latitude = pos.latitude;
+      longitude = pos.longitude;
+    } catch (err: any) {
+      throw err;
+    }
+  } else {
+    throw new Error("Unable to determine your current location. Please try again.");
   }
 
-  // Use custom ESS API - it handles employee and shift automatically
+  console.log("[Attendance] Coordinates:", { latitude, longitude });
+
+  const cleanUrl = companyUrl.replace(/\/$/, "");
   const apiUrl = `${cleanUrl}/api/method/employee_self_service.mobile.ess.create_employee_log`;
-  console.log("[AttendanceService] Full API URL:", apiUrl);
+
+  const payload = {
+    log_type: logType,
+    latitude,
+    longitude,
+    device_id: "mobile",
+    biometric_verified: 1,
+  };
+
+  console.log("[Attendance] ESS Payload:", payload);
 
   try {
-    // Use form-urlencoded format for Frappe whitelist endpoints
-    const formData = new URLSearchParams();
-    formData.append("log_type", logType);
-    formData.append("location", locationName);
+    const response = await api.post<CreateEmployeeLogResponse>(apiUrl, payload, {
+      headers: {
+        "Content-Type": "application/json",
+        ...getAuthHeader(apiKey, apiSecret),
+      },
+      timeout: 30000,
+    });
 
-    console.log("[AttendanceService] Form data:", formData.toString());
-
-    const response = await api.post<CreateEmployeeLogResponse>(
-      apiUrl,
-      formData.toString(),
-      {
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-          ...getAuthHeader(apiKey, apiSecret),
-        },
-        timeout: 30000,
-      }
-    );
-
-    console.log("[AttendanceService] Punch success:", response.data);
+    console.log("[Attendance] ESS Response:", response.data);
     return response.data;
   } catch (error: any) {
-    console.log("[AttendanceService] Punch error:", error);
-    
-    // Handle both axios errors (web) and native fetch errors (mobile)
-    let errorMessage = "Failed to record checkin. Please try again.";
-    
-    if (error.response) {
-      // Axios error format (web)
-      console.log("[AttendanceService] Axios error details:", {
-        status: error.response?.status,
-        data: error.response?.data,
-      });
-      if (error.response?.data?.exception) {
-        errorMessage = error.response.data.exception;
-      } else if (error.response?.data?.error) {
-        errorMessage = error.response.data.error;
-      } else if (error.response?.status === 401) {
-        errorMessage = "Authentication failed. Please login again.";
-      }
-    } else if (error.message) {
-      // Native fetch error format (mobile)
-      console.log("[AttendanceService] Fetch error message:", error.message);
-      errorMessage = error.message;
+    console.error("[Attendance] ESS Error:", error);
+
+    const { message, status } = getMobileError(error);
+
+    if (status === 401) {
+      throw new Error("Authentication failed. Please login again.");
     }
-    
-    throw new Error(errorMessage);
+
+    throw new Error(message || "Unable to record attendance. Please try again.");
   }
 };
 
@@ -308,10 +336,11 @@ export const getAttendanceList = async (
     return response.data;
   } catch (error: any) {
     console.error("[AttendanceService] Failed to fetch attendance list:", error);
-    if (error.response?.status === 401) {
+    const { status } = getMobileError(error);
+    if (status === 401) {
       throw new Error("Authentication failed. Please login again.");
     }
-    throw new Error(error.response?.data?.exception || error.message || "Failed to fetch attendance list");
+    throw new Error(getMobileError(error).message || "Failed to fetch attendance list");
   }
 };
 
@@ -353,10 +382,11 @@ export const getAttendanceDetailsDashboard = async (): Promise<AttendanceDashboa
     return response.data;
   } catch (error: any) {
     console.error("[AttendanceService] Failed to fetch dashboard:", error);
-    if (error.response?.status === 401) {
+    const { status } = getMobileError(error);
+    if (status === 401) {
       throw new Error("Authentication failed. Please login again.");
     }
-    throw new Error(error.response?.data?.exception || error.message || "Failed to fetch attendance dashboard");
+    throw new Error(getMobileError(error).message || "Failed to fetch attendance dashboard");
   }
 };
 
@@ -410,12 +440,13 @@ export const getEmployeeCheckinList = async (employeeId: string): Promise<Checki
     return response.data.data;
   } catch (error: any) {
     console.error("[AttendanceService] Failed to fetch checkin list:", error);
-    if (error.response?.status === 401) {
+    const { status } = getMobileError(error);
+    if (status === 401) {
       throw new Error("Authentication failed. Please login again.");
-    } else if (error.response?.status === 403) {
+    } else if (status === 403) {
       throw new Error("Permission denied. You don't have access to this data.");
     }
-    throw new Error(error.response?.data?.exception || error.message || "Failed to fetch attendance list");
+    throw new Error(getMobileError(error).message || "Failed to fetch attendance list");
   }
 };
 
@@ -468,12 +499,13 @@ export const getCheckinDetail = async (checkinName: string): Promise<EmployeeChe
     return response.data.data;
   } catch (error: any) {
     console.error("[AttendanceService] Failed to fetch checkin detail:", error);
-    if (error.response?.status === 401) {
+    const { status } = getMobileError(error);
+    if (status === 401) {
       throw new Error("Authentication failed. Please login again.");
-    } else if (error.response?.status === 403) {
+    } else if (status === 403) {
       throw new Error("Permission denied. You don't have access to this data.");
     }
-    throw new Error(error.response?.data?.exception || error.message || "Failed to fetch checkin details");
+    throw new Error(getMobileError(error).message || "Failed to fetch checkin details");
   }
 };
 

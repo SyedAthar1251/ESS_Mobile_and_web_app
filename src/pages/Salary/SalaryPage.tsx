@@ -24,6 +24,10 @@ import SalarySlipPdfTemplate, {
 } from "../../components/Salary/SalarySlipPdfTemplate";
 import { translateDynamic, translateArrayField, translateObjectFields, shouldTranslate } from "../../services/translation.service";
 import { LANGUAGES } from "../../i18n/languages";
+import {
+  EMPLOYEE_PAGE_CONTAINER,
+  getDarkPageCardStyle,
+} from "../../utils/pageCardStyles";
 
 const SummaryCardSkeleton = ({ isDark }: { isDark: boolean }) => (
   <div className={`rounded-2xl p-4 text-center animate-pulse ${isDark ? "bg-gray-800" : "bg-gray-100"}`}>
@@ -33,7 +37,7 @@ const SummaryCardSkeleton = ({ isDark }: { isDark: boolean }) => (
 );
 
 const DetailSkeleton = ({ isDark }: { isDark: boolean }) => (
-  <div className={`rounded-2xl shadow-lg p-5 animate-pulse ${isDark ? "bg-gray-800 border border-gray-700" : "bg-white"}`}>
+  <div className={`${getDarkPageCardStyle(isDark)} p-5 animate-pulse`}>
     <div className={`h-5 w-40 mb-4 ${isDark ? "bg-gray-700" : "bg-gray-200"} rounded`} />
     <div className="space-y-3">
       {[1, 2, 3, 4].map((i) => (
@@ -425,7 +429,7 @@ const SalaryPage = () => {
   const labelCls = `text-xs font-medium ${isDark ? "text-gray-400" : "text-gray-500"}`;
   const valueCls = `font-bold ${isDark ? "text-white" : "text-gray-800"}`;
   const titleCls = `text-xl font-bold ${isDark ? "text-white" : "text-gray-800"}`;
-  const cardCls = `rounded-2xl shadow-lg p-5 transition-all ${isDark ? "bg-gray-800 border border-gray-700" : "bg-white"}`;
+  const cardCls = `${getDarkPageCardStyle(isDark)} p-5 transition-all`;
 
   const monthOptions = useMemo(() => {
     const uniqueMonths = new Map<string, { label: string; value: string }>();
@@ -748,7 +752,7 @@ const getStatusStyle = (status: string) => {
   const displayStatus = translatedStatus || (salaryDetails as any)?.status || "";
 
   return (
-    <div className={`p-4 space-y-6 min-h-screen overflow-x-hidden transition-all ${isDark ? "bg-gray-900 text-white" : "bg-gray-50 text-gray-900"}`}>
+    <div className={`${EMPLOYEE_PAGE_CONTAINER} min-h-screen overflow-x-hidden transition-all ${isDark ? "bg-gray-900 text-white" : "bg-gray-50 text-gray-900"}`}>
 
       <div className="flex items-center justify-between">
         <h1 className={titleCls}>{t("salarySlip")}</h1>
@@ -880,7 +884,7 @@ const getStatusStyle = (status: string) => {
         <button
           type="button"
           onClick={() => setMonthDropdownOpen((v) => !v)}
-          className={`w-full rounded-2xl shadow-lg p-4 flex justify-between items-center ${isDark ? "bg-gray-800" : "bg-white"}`}
+          className={`w-full ${getDarkPageCardStyle(isDark)} p-4 flex justify-between items-center`}
         >
           <span className="font-medium truncate">{monthOptions.find(m => m.value === selectedMonth)?.label || t("selectMonth")}</span>
           <span className="text-gray-400 flex-shrink-0 ml-2">▼</span>
@@ -917,7 +921,7 @@ const getStatusStyle = (status: string) => {
         <button
           type="button"
           onClick={() => setDropdownOpen((v) => !v)}
-          className={`w-full rounded-2xl shadow-lg p-4 flex justify-between items-center ${isDark ? "bg-gray-800" : "bg-white"}`}
+          className={`w-full ${getDarkPageCardStyle(isDark)} p-4 flex justify-between items-center`}
         >
           <span className="font-medium truncate">{selectedSalary || t("selectSalarySlip")}</span>
           <span className="text-gray-400 flex-shrink-0 ml-2">▼</span>
@@ -983,7 +987,7 @@ const getStatusStyle = (status: string) => {
       ) : salaryDetails ? (
         <div className="grid grid-cols-2 gap-3">
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0 }}
-            className={`rounded-2xl p-4 text-center hover:scale-[1.02] transition-all shadow-xl ${isDark ? "bg-gray-800" : "bg-indigo-50"}`}
+            className={`rounded-2xl p-4 text-center hover:scale-[1.02] transition-all shadow-sm ${isDark ? "bg-gray-800" : "bg-indigo-50"}`}
           >
             <p className={`text-xl font-bold ${isDark ? "text-indigo-400" : "text-indigo-600"}`}>
                {riyalCard("5")}
@@ -992,7 +996,7 @@ const getStatusStyle = (status: string) => {
             <p className={labelCls}>{t("grossPay")}</p>
           </motion.div>
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}
-            className={`rounded-2xl p-4 text-center hover:scale-[1.02] transition-all shadow-xl ${isDark ? "bg-gray-800" : "bg-emerald-50"}`}
+            className={`rounded-2xl p-4 text-center hover:scale-[1.02] transition-all shadow-sm ${isDark ? "bg-gray-800" : "bg-emerald-50"}`}
           >
             <p className={`text-xl font-bold ${isDark ? "text-emerald-400" : "text-emerald-600"}`}>
                {riyalCard("5")}

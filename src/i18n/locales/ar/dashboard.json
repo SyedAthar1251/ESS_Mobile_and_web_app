@@ -58,6 +58,9 @@
   "leaveApproved": "إجازة معتمدة",
   "expenseClaimed": "مصروف مقدم",
   "ahmedBirthday": "عيد ميلاد أحمد",
-  "workAnniversaryText": "ذكرى العمل",
-  "nationalDayText": "اليوم الوطني"
+  "nationalDayText": "اليوم الوطني",
+  "breakOut": "خروج استراحة",
+  "breakIn": "عودة استراحة",
+  "biometricVerification": "التحقق البيومتري",
+  "biometricVerificationFailed": "فشل التحقق البيومتري"
 }

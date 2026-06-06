@@ -1,4 +1,4 @@
-import { useState, useEffect, ReactNode, useRef } from "react";
+import { useState, useEffect, useMemo, ReactNode, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLanguage } from "../../i18n/LanguageContext";
 import { useTheme } from "../../store/ThemeContext";
@@ -6,12 +6,28 @@ import {
   getLeaveApplicationList,
   createLeaveApplication,
   getLeaveApprover,
+  getLeaveApplicationDetail,
+  getUserDisplayName,
   LeaveApplicationListResponse,
   LeaveApplication,
+  LeaveApplicationDetail,
   LeaveTypeBalance,
   CreateLeaveApplicationRequest,
 } from "../../services/leave.service";
 import { translateBatch, translateDynamic, shouldTranslate, LANGUAGES } from "../../services/translation.service";
+import LeaveApprovalFlow from "../../components/leave/LeaveApprovalFlow";
+import LeaveCalendarView from "../../components/leave/LeaveCalendarView";
+import { getHolidayListDetails, HolidayItem } from "../../services/holiday.service";
+import { getEmployeeProfile } from "../../services/employee.service";
+import { getUserCredentials } from "../../services/leave.service";
+import {
+  EMPLOYEE_PAGE_CONTAINER,
+  getPageCardStyle,
+  getListItemCardClass,
+} from "../../utils/pageCardStyles";
+import SearchableSelect from "../../components/common/SearchableSelect";
+import DatePickerField from "../../components/common/DatePickerField";
+import { useLocation } from "react-router-dom";
 
 const StatCardSkeleton = () => (
   <div className="bg-gray-100 rounded-2xl p-4 text-center animate-pulse">
@@ -24,7 +40,7 @@ const BalanceCardSkeleton = () => (
   <motion.div
     initial={{ opacity: 0, y: 20 }}
     animate={{ opacity: 1, y: 0 }}
-    className="bg-white rounded-2xl shadow-lg p-4 animate-pulse"
+    className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 animate-pulse"
   >
     <div className="h-4 w-28 bg-gray-200 rounded mb-3" />
     <div className="grid grid-cols-4 gap-2 mb-3">
@@ -70,13 +86,22 @@ const ApplyFormSkeleton = () => (
 const LeavePage = () => {
   const { language, t } = useLanguage();
   const { theme } = useTheme();
+  const location = useLocation();
 
   const [activeView, setActiveView] = useState<"list" | "balance" | "apply">("list");
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [statsLeaveTypeDropdownOpen, setStatsLeaveTypeDropdownOpen] = useState(false);
+  const [formLeaveTypeDropdownOpen, setFormLeaveTypeDropdownOpen] = useState(false);
+  const [leaveIntentDropdownOpen, setLeaveIntentDropdownOpen] = useState(false);
+  const [relationshipTypeDropdownOpen, setRelationshipTypeDropdownOpen] = useState(false);
+
+  const [leaveApprover, setLeaveApprover] = useState<string | null>(null);
+  const [showNoApproverModal, setShowNoApproverModal] = useState(false);
 
   const [leaveTypes, setLeaveTypes] = useState<{ leave_type: string; closing_balance: number }[]>([]);
   const [leaveApplications, setLeaveApplications] = useState<LeaveApplication[]>([]);
   const [leaveBalance, setLeaveBalance] = useState<LeaveTypeBalance[]>([]);
+  const [selectedLeaveType, setSelectedLeaveType] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [listDisplayLimit, setListDisplayLimit] = useState(10);
@@ -97,14 +122,8 @@ const LeavePage = () => {
   const [customApprovedLeaveForm, setCustomApprovedLeaveForm] = useState<File | null>(null);
   const [customEnrollmentProof, setCustomEnrollmentProof] = useState<File | null>(null);
   const [customMarriageProof, setCustomMarriageProof] = useState<File | null>(null);
-  const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
-  const [leaveTypeDropdownOpen, setLeaveTypeDropdownOpen] = useState(false);
-  const [leaveIntentDropdownOpen, setLeaveIntentDropdownOpen] = useState(false);
-  const [relationshipTypeDropdownOpen, setRelationshipTypeDropdownOpen] = useState(false);
-
-  const [leaveApprover, setLeaveApprover] = useState<string | null>(null);
-  const [showNoApproverModal, setShowNoApproverModal] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   // ═══════════════════════════════════════════════════════════
   //  TRANSLATION STATE  (dynamic API values only)
@@ -119,7 +138,8 @@ const LeavePage = () => {
     const handleClickOutside = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
       if (!target.closest('[data-dropdown]')) {
-        setLeaveTypeDropdownOpen(false);
+        setStatsLeaveTypeDropdownOpen(false);
+        setFormLeaveTypeDropdownOpen(false);
         setLeaveIntentDropdownOpen(false);
         setRelationshipTypeDropdownOpen(false);
       }
@@ -130,6 +150,10 @@ const LeavePage = () => {
 
   const [selectedLeave, setSelectedLeave] = useState<LeaveApplication | null>(null);
   const [showDetail, setShowDetail] = useState(false);
+  const [leaveApplicationDetail, setLeaveApplicationDetail] = useState<LeaveApplicationDetail | null>(null);
+  const [approverDisplayName, setApproverDisplayName] = useState("");
+  const [approvalFlowLoading, setApprovalFlowLoading] = useState(false);
+  const [leaveHolidays, setLeaveHolidays] = useState<HolidayItem[]>([]);
 
   const [toast, setToast] = useState<{
     message: string;
@@ -234,6 +258,11 @@ const LeavePage = () => {
 
         const listRes = await getLeaveApplicationList();
 
+        // console.log("[LeavePage] Full API Response:", JSON.stringify(listRes, null, 2));
+        // console.log("[LeavePage] Leave Balance (types):", JSON.stringify(listRes.data?.balance, null, 2));
+        // console.log("[LeavePage] Upcoming leaves:", JSON.stringify(listRes.data?.upcoming, null, 2));
+        // console.log("[LeavePage] Taken leaves:", JSON.stringify(listRes.data?.taken, null, 2));
+
         if (cancelled) return;
 
         if (listRes.data) {
@@ -244,6 +273,13 @@ const LeavePage = () => {
             closing_balance: b.closing_balance,
           }));
           setLeaveTypes(derivedTypes);
+
+          if (listRes.data.balance && listRes.data.balance.length > 0) {
+            const annualLeave = listRes.data.balance.find(
+              (b: LeaveTypeBalance) => b.leave_type?.toLowerCase().includes("annual")
+            );
+            setSelectedLeaveType(annualLeave ? annualLeave.leave_type : listRes.data.balance[0].leave_type);
+          }
         }
       } catch (err: any) {
         if (cancelled) return;
@@ -264,6 +300,87 @@ const LeavePage = () => {
   useEffect(() => {
     setListDisplayLimit(10);
   }, [leaveApplications.length]);
+
+  useEffect(() => {
+    if (!location.state?.openLeaveDetail || !location.state?.leaveId) return;
+
+    const leaveId = location.state.leaveId as string | undefined;
+    if (!leaveId) return;
+
+    const found = leaveApplications.find((app) => app.name === leaveId);
+    if (found) {
+      setSelectedLeave(found);
+      setShowDetail(true);
+    } else {
+      showToast("Unable to load leave details", "error");
+    }
+
+    window.history.replaceState({}, document.title);
+  }, [location.state, leaveApplications]);
+
+  useEffect(() => {
+    if (!showDetail || !selectedLeave?.name) {
+      setLeaveApplicationDetail(null);
+      setApproverDisplayName("");
+      return;
+    }
+
+    let cancelled = false;
+
+    const fetchApprovalFlow = async () => {
+      setApprovalFlowLoading(true);
+      try {
+        const detail = await getLeaveApplicationDetail(selectedLeave.name);
+        if (cancelled) return;
+
+        setLeaveApplicationDetail(detail);
+
+        if (detail?.leave_approver) {
+          const name = await getUserDisplayName(detail.leave_approver);
+          if (!cancelled) setApproverDisplayName(name);
+        } else {
+          setApproverDisplayName("");
+        }
+      } catch {
+        if (!cancelled) {
+          setLeaveApplicationDetail(null);
+          setApproverDisplayName("");
+        }
+      } finally {
+        if (!cancelled) setApprovalFlowLoading(false);
+      }
+    };
+
+    fetchApprovalFlow();
+    return () => { cancelled = true; };
+  }, [showDetail, selectedLeave?.name]);
+
+  useEffect(() => {
+    if (!showDetail || !selectedLeave) {
+      setLeaveHolidays([]);
+      return;
+    }
+
+    let cancelled = false;
+
+    const fetchHolidays = async () => {
+      try {
+        const { employeeId } = getUserCredentials();
+        const profile = await getEmployeeProfile(employeeId);
+        if (cancelled || !profile?.holidayList) return;
+
+        const details = await getHolidayListDetails(profile.holidayList);
+        if (!cancelled) {
+          setLeaveHolidays(details.holidays || []);
+        }
+      } catch {
+        if (!cancelled) setLeaveHolidays([]);
+      }
+    };
+
+    fetchHolidays();
+    return () => { cancelled = true; };
+  }, [showDetail, selectedLeave]);
 
   const isSickLeave = formLeaveType
     ?.trim()
@@ -292,7 +409,7 @@ const LeavePage = () => {
 
   const handleLeaveTypeSelect = (leaveType: string) => {
     setFormLeaveType(leaveType);
-    setLeaveTypeDropdownOpen(false);
+    setFormLeaveTypeDropdownOpen(false);
   };
 
   useEffect(() => {
@@ -487,7 +604,7 @@ const LeavePage = () => {
     }
   };
 
-  const parseDDMMYYYY = (dateStr: string): Date => {
+  const parseAPIDate = (dateStr: string): Date => {
     const parts = dateStr.split("-");
     if (parts.length === 3) {
       const [d, m, y] = parts.map(Number);
@@ -497,7 +614,7 @@ const LeavePage = () => {
   };
 
   const formatDate = (dateStr: string) => {
-    const date = parseDDMMYYYY(dateStr);
+    const date = parseAPIDate(dateStr);
     return date.toLocaleDateString(language === "ar" ? "ar-SA" : "en-US", {
       day: "numeric",
       month: "short",
@@ -533,10 +650,10 @@ const LeavePage = () => {
   };
 
   const upcomingApplications = leaveApplications.filter(
-    (a) => a.from_date && parseDDMMYYYY(a.from_date) >= new Date(new Date().setHours(0, 0, 0, 0))
+    (a) => a.from_date && parseAPIDate(a.from_date) >= new Date(new Date().setHours(0, 0, 0, 0))
   );
   const takenApplications = leaveApplications.filter(
-    (a) => a.from_date && parseDDMMYYYY(a.from_date) < new Date(new Date().setHours(0, 0, 0, 0))
+    (a) => a.from_date && parseAPIDate(a.from_date) < new Date(new Date().setHours(0, 0, 0, 0))
   );
 
   const allListItems = [...upcomingApplications, ...takenApplications];
@@ -552,7 +669,8 @@ const LeavePage = () => {
             (item) =>
               (item.opening_balance && item.opening_balance > 0) ||
               (item.leaves_taken && item.leaves_taken > 0) ||
-              (item.closing_balance && item.closing_balance > 0),
+              (item.closing_balance && item.closing_balance > 0) ||
+              (item.leaves_expired && item.leaves_expired > 0),
           )
           .map((item) => ({
             ...item,
@@ -563,6 +681,17 @@ const LeavePage = () => {
           }))
       : [];
 
+  const allLeaveTypesForDropdown =
+    leaveBalance.length > 0
+      ? leaveBalance.map((item) => ({
+          ...item,
+          allocated: item.opening_balance ?? 0,
+          used: item.leaves_taken ?? 0,
+          remaining: item.closing_balance ?? 0,
+          leave_type: item.leave_type,
+        }))
+      : [];
+
   const pendingLeaves =
     leaveApplications
       .filter((app) => app.status?.toLowerCase() === "open")
@@ -571,6 +700,15 @@ const LeavePage = () => {
   const totalAllocated = (displayBalances?.reduce((sum, item) => sum + (item.allocated || 0), 0) || 0);
   const totalUsed      = (displayBalances?.reduce((sum, item) => sum + (item.used      || 0), 0) || 0);
   const totalRemaining = (displayBalances?.reduce((sum, item) => sum + (item.remaining || 0), 0) || 0);
+
+  const selectedBalance = selectedLeaveType
+    ? allLeaveTypesForDropdown.find((b) => b.leave_type === selectedLeaveType) || null
+    : null;
+
+  const selAllocated  = selectedBalance?.allocated  ?? 0;
+  const selUsed       = selectedBalance?.used       ?? 0;
+  const selExpired    = selectedBalance ? ((selectedBalance as LeaveTypeBalance).leaves_expired ?? 0) : 0;
+  const selRemaining  = selectedBalance?.remaining  ?? 0;
 
   const viewOptions = [
     {
@@ -596,8 +734,60 @@ const LeavePage = () => {
     },
   ];
 
+  const cardStyle = getPageCardStyle(theme);
+  const listItemCardClass = getListItemCardClass(theme);
+
+  const statsLeaveTypeOptions = useMemo(
+    () =>
+      allLeaveTypesForDropdown.map((item) => ({
+        value: item.leave_type,
+        label: item.leave_type,
+        searchText: `${item.leave_type} ${getTranslatedLeaveType(item.leave_type)}`,
+      })),
+    [allLeaveTypesForDropdown, translatedLeaveTypes, language]
+  );
+
+  const formLeaveTypeOptions = useMemo(
+    () =>
+      leaveTypes.map((lt) => ({
+        value: lt.leave_type,
+        label: getTranslatedLeaveType(lt.leave_type),
+        sublabel: `${t("available") || "Available"}: ${lt.closing_balance}`,
+        searchText: `${lt.leave_type} ${getTranslatedLeaveType(lt.leave_type)}`,
+      })),
+    [leaveTypes, translatedLeaveTypes, language, t]
+  );
+
+  const viewSelectOptions = useMemo(
+    () => [
+      { value: "list", label: t("myRequests") },
+      { value: "balance", label: t("leaveBalance") },
+    ],
+    [t, language]
+  );
+
+  const relationshipOptions = useMemo(
+    () => [
+      { value: "Spouse", label: t("spouse") || "Spouse" },
+      { value: "Parent", label: t("parent") || "Parent" },
+      { value: "Grandparent", label: t("grandparent") || "Grandparent" },
+      { value: "Child", label: t("child") || "Child" },
+      { value: "Grandchild", label: t("grandchild") || "Grandchild" },
+      { value: "Sibling", label: t("sibling") || "Sibling" },
+    ],
+    [t, language]
+  );
+
+  const formLeaveTypeDisplay = formLeaveType
+    ? (() => {
+        const lt = leaveTypes.find((l) => l.leave_type === formLeaveType);
+        const balance = lt != null ? ` (${t("available") || "Available"}: ${lt.closing_balance})` : "";
+        return `${getTranslatedLeaveType(formLeaveType)}${balance}`;
+      })()
+    : undefined;
+
   return (
-    <div className="p-4 space-y-6">
+    <div className={EMPLOYEE_PAGE_CONTAINER}>
 
       {/* ── Header ── */}
       <div className="space-y-4">
@@ -617,6 +807,23 @@ const LeavePage = () => {
           )}
         </div>
 
+        {/* Leave Type selector */}
+        {!loading && allLeaveTypesForDropdown.length > 0 && (
+          <SearchableSelect
+            variant="card"
+            placeholder={t("selectLeaveType") || "Select Leave Type"}
+            searchPlaceholder={t("search") || "Search..."}
+            value={selectedLeaveType}
+            displayValue={selectedLeaveType || undefined}
+            options={statsLeaveTypeOptions}
+            isOpen={statsLeaveTypeDropdownOpen}
+            onOpenChange={setStatsLeaveTypeDropdownOpen}
+            onSelect={setSelectedLeaveType}
+            triggerClassName={`w-full ${cardStyle} p-4 flex items-center justify-between`}
+            emptyMessage={t("noLeaveRequests")}
+          />
+        )}
+
         {/* Stats cards from API balance totals */}
         {loading ? (
           <div className="grid grid-cols-4 gap-3">
@@ -630,10 +837,10 @@ const LeavePage = () => {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0 }}
-              className="bg-indigo-50 rounded-2xl p-4 text-center"
+              className="bg-indigo-50 rounded-2xl p-4 text-center shadow-sm"
             >
               <p className="text-xl font-bold text-indigo-600">
-                {totalAllocated}
+                {selectedLeaveType ? selAllocated : totalAllocated}
               </p>
               <p className="text-xs text-gray-500 mt-1">{t("totalAllocated")}</p>
             </motion.div>
@@ -641,10 +848,10 @@ const LeavePage = () => {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 }}
-              className="bg-indigo-50 rounded-2xl p-4 text-center"
+              className="bg-indigo-50 rounded-2xl p-4 text-center shadow-sm"
             >
               <p className="text-xl font-bold text-indigo-600">
-                {totalUsed}
+                {selectedLeaveType ? selUsed : totalUsed}
               </p>
               <p className="text-xs text-gray-500 mt-1">{t("used")}</p>
             </motion.div>
@@ -652,21 +859,21 @@ const LeavePage = () => {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2 }}
-              className="bg-indigo-50 rounded-2xl p-4 text-center"
+              className="bg-indigo-50 rounded-2xl p-4 text-center shadow-sm"
             >
               <p className="text-xl font-bold text-indigo-600">
-                {Math.max(totalAllocated - totalUsed - totalRemaining, 0)}
+                {selectedLeaveType ? selExpired : Math.max(totalAllocated - totalUsed - totalRemaining, 0)}
               </p>
-              <p className="text-xs text-gray-500 mt-1">{t("pending")}</p>
+              <p className="text-xs text-gray-500 mt-1">{t("expired") || "Expired"}</p>
             </motion.div>
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.3 }}
-              className="bg-indigo-50 rounded-2xl p-4 text-center"
+              className="bg-indigo-50 rounded-2xl p-4 text-center shadow-sm"
             >
               <p className="text-xl font-bold text-indigo-600">
-                {totalRemaining}
+                {selectedLeaveType ? selRemaining : totalRemaining}
               </p>
               <p className="text-xs text-gray-500 mt-1">{t("remaining")}</p>
             </motion.div>
@@ -674,85 +881,19 @@ const LeavePage = () => {
         ) : null}
 
         {/* Dropdown for view selection */}
-        <div className="relative" data-dropdown>
-          <button
-            type="button"
-            onClick={() => setDropdownOpen(!dropdownOpen)}
-            className="w-full bg-white rounded-2xl shadow-lg p-4 flex items-center justify-between"
-          >
-            <div className="flex items-center gap-3">
-              <span className="text-indigo-600">{viewOptions[0].icon}</span>
-              <span className="font-medium text-gray-800">{viewOptions[0].label}</span>
-            </div>
-            <svg
-              className={`w-5 h-5 text-gray-400 transition-transform ${dropdownOpen ? "rotate-180" : ""}`}
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-            </svg>
-          </button>
-
-          <AnimatePresence>
-            {dropdownOpen && (
-              <>
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="fixed inset-0 z-10"
-                  onClick={() => setDropdownOpen(false)}
-                />
-                <motion.ul
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-xl z-20 overflow-hidden"
-                >
-                  <li>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        console.log("[LeavePage] View selected: myRequests");
-                        setActiveView("list");
-                        setDropdownOpen(false);
-                      }}
-                      className={`w-full p-4 flex items-center gap-3 hover:bg-indigo-50 transition-colors ${
-                        activeView === "list" ? "bg-indigo-50" : ""
-                      }`}
-                    >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                      </svg>
-                      <span className="font-medium text-gray-800">{t("myRequests")}</span>
-                      {activeView === "list" && <span className="ml-auto text-indigo-600">✓</span>}
-                    </button>
-                  </li>
-                  <li>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        console.log("[LeavePage] View selected: leaveBalance");
-                        setActiveView("balance");
-                        setDropdownOpen(false);
-                      }}
-                      className={`w-full p-4 flex items-center gap-3 hover:bg-indigo-50 transition-colors ${
-                        activeView === "balance" ? "bg-indigo-50" : ""
-                      }`}
-                    >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                      </svg>
-                      <span className="font-medium text-gray-800">{t("leaveBalance")}</span>
-                      {activeView === "balance" && <span className="ml-auto text-indigo-600">✓</span>}
-                    </button>
-                  </li>
-                </motion.ul>
-              </>
-            )}
-          </AnimatePresence>
-        </div>
+        <SearchableSelect
+          variant="card"
+          placeholder={t("myRequests")}
+          searchPlaceholder={t("search") || "Search..."}
+          value={activeView === "apply" ? "list" : activeView}
+          displayValue={viewOptions[0].label}
+          options={viewSelectOptions}
+          isOpen={dropdownOpen}
+          onOpenChange={setDropdownOpen}
+          onSelect={(v) => setActiveView(v as "list" | "balance")}
+          triggerClassName={`w-full ${cardStyle} p-4 flex items-center justify-between`}
+          leadingIcon={<span className="text-indigo-600">{viewOptions[0].icon}</span>}
+        />
       </div>
 
       {/* ══════════════════════════════════════ */}
@@ -760,78 +901,82 @@ const LeavePage = () => {
       {/* ══════════════════════════════════════ */}
 
       {activeView === "list" && !loading && (
-        <div className={`shadow-lg ${theme === "neon-green" ? "neon-card" : "bg-white rounded-2xl"}`}>
-          <div className="p-4 space-y-3">
-            <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">
+        <div className="space-y-4">
+          <div>
+            <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
               {t("upcomingLeave") || "Upcoming Leave"}
             </h3>
             {upcomingApplications.length === 0 ? (
-              <p className="text-sm text-gray-400 text-center py-4">
-                {t("noLeaveRequests")}
-              </p>
+              <div className={`${cardStyle} p-8 text-center text-gray-500`}>
+                <p className="text-sm">{t("noLeaveRequests")}</p>
+              </div>
             ) : (
-              displayedUpcoming.map((app, idx) => (
-                <motion.div
-                  key={app.name || idx}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: idx * 0.05 }}
-                  onClick={() => {
-                    setSelectedLeave(app);
-                    setShowDetail(true);
-                  }}
-                  className={`p-3 rounded-xl cursor-pointer transition-colors hover:bg-indigo-50 ${idx < displayedUpcoming.length - 1 ? "" : ""}`}
-                >
-                  <div className="flex items-start justify-between mb-1">
-                    <h4 className="font-medium text-gray-800 text-sm">{getTranslatedLeaveType(app.leave_type)}</h4>
-                    {getStatusBadge(app.status)}
-                  </div>
-                  <p className="text-xs text-gray-500">
-                    {formatDate(app.from_date)} – {formatDate(app.to_date)}
-                  </p>
-                </motion.div>
-              ))
-            )}
+              <div className="space-y-3">
+                {displayedUpcoming.map((app, idx) => (
+                  <motion.div
+                    key={app.name || idx}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: idx * 0.05 }}
+                    onClick={() => {
+                      setSelectedLeave(app);
+                      setShowDetail(true);
+                    }}
+                    className={listItemCardClass}
+                  >
+                    <div className="flex items-start justify-between mb-1">
+                      <h4 className="font-medium text-gray-800 text-sm">{getTranslatedLeaveType(app.leave_type)}</h4>
+                      {getStatusBadge(app.status)}
+                    </div>
+                    <p className="text-xs text-gray-500">
+                      {formatDate(app.from_date)} – {formatDate(app.to_date)}
+                    </p>
+                  </motion.div>
+                ))}
 
-            {hasMore && (
-              <button
-                type="button"
-                onClick={() => setListDisplayLimit(hitLimit ? 10 : totalItems)}
-                className="w-full text-sm text-indigo-600 font-medium py-2 hover:bg-indigo-50 rounded-xl transition-colors"
-              >
-                {hitLimit
-                  ? t("showLess") || "Show Less"
-                  : t("loadMore") || `Load More (${totalItems - listDisplayLimit} remaining)`}
-              </button>
+                {hasMore && (
+                  <button
+                    type="button"
+                    onClick={() => setListDisplayLimit(hitLimit ? 10 : totalItems)}
+                    className="w-full text-sm text-indigo-600 font-medium py-2 hover:bg-indigo-50 rounded-xl transition-colors"
+                  >
+                    {hitLimit
+                      ? t("showLess") || "Show Less"
+                      : t("loadMore") || `Load More (${totalItems - listDisplayLimit} remaining)`}
+                  </button>
+                )}
+              </div>
             )}
           </div>
 
           {takenApplications.length > 0 && (
-            <div className="p-4 border-t border-gray-100 space-y-3">
-              <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">
+            <div>
+              <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
                 {t("takenLeave") || "Taken Leave"}
               </h3>
-              {takenApplications.map((app, idx) => (
-                <div
-                  key={app.name || idx}
-                  onClick={() => {
-                    setSelectedLeave(app);
-                    setShowDetail(true);
-                  }}
-                  className="p-3 rounded-xl cursor-pointer hover:bg-indigo-50 transition-colors"
-                >
-                  <div className="flex items-start justify-between mb-1">
-                    <h4 className="font-medium text-gray-800 text-sm">{getTranslatedLeaveType(app.leave_type)}</h4>
-                    {getStatusBadge(app.status)}
+              <div className="space-y-3">
+                {takenApplications.map((app, idx) => (
+                  <div
+                    key={app.name || idx}
+                    onClick={() => {
+                      setSelectedLeave(app);
+                      setShowDetail(true);
+                    }}
+                    className={listItemCardClass}
+                  >
+                    <div className="flex items-start justify-between mb-1">
+                      <h4 className="font-medium text-gray-800 text-sm">{getTranslatedLeaveType(app.leave_type)}</h4>
+                      {getStatusBadge(app.status)}
+                    </div>
+                    <p className="text-xs text-gray-500">
+                      {formatDate(app.from_date)} – {formatDate(app.to_date)}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      {app.total_leave_days} {t("days")}
+                    </p>
                   </div>
-                  <p className="text-xs text-gray-500">
-                    {formatDate(app.from_date)} – {formatDate(app.to_date)}
-                  </p>
-                  <p className="text-xs text-gray-400 mt-0.5">
-                    {app.total_leave_days} {t("days")}
-                  </p>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           )}
         </div>
@@ -845,7 +990,7 @@ const LeavePage = () => {
           {loading ? (
             [1, 2, 3].map((i) => <BalanceCardSkeleton key={i} />)
           ) : !displayBalances || displayBalances.length === 0 ? (
-            <div className="bg-white rounded-2xl shadow-lg p-8 text-center text-gray-500">
+            <div className={`${cardStyle} p-8 text-center text-gray-500`}>
               <p>{t("noLeaveRequests")}</p>
             </div>
           ) : (
@@ -857,7 +1002,7 @@ const LeavePage = () => {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.1 }}
-                  className="bg-white rounded-2xl shadow-lg p-4"
+                  className={`${cardStyle} p-4`}
                 >
                   <h3 className="font-semibold text-gray-800 mb-3">
                     {getTranslatedLeaveType(balance.leave_type)}
@@ -901,7 +1046,7 @@ const LeavePage = () => {
       {/* SECTION 4: Apply Leave Form             */}
       {/* ══════════════════════════════════════ */}
       {activeView === "apply" && (
-        <div className={`shadow-lg ${theme === "neon-green" ? "neon-card" : "bg-white rounded-2xl"}`}>
+        <div className={cardStyle}>
           <div className="p-4">
             <div className="flex items-center gap-3 mb-4">
               <button
@@ -925,60 +1070,19 @@ const LeavePage = () => {
                   {t("leaveDetails") || "Leave Details"}
                 </h3>
 
-                <div className="relative w-full" data-dropdown>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">
-                    {t("leaveType")}
-                    <span className="text-red-500 ml-1">*</span>
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => setLeaveTypeDropdownOpen(!leaveTypeDropdownOpen)}
-                    className="w-full p-3 border border-gray-200 rounded-xl bg-gray-50 text-left flex items-center justify-between"
-                  >
-                    <span className={formLeaveType ? "text-gray-800" : "text-gray-400"}>
-                      {formLeaveType ? getTranslatedLeaveType(formLeaveType) : t("selectLeaveType")}
-                      {formLeaveType && (() => {
-                        const lt = leaveTypes.find((l) => l.leave_type === formLeaveType);
-                        return lt != null ? ` (${t("available") || "Available"}: ${lt.closing_balance})` : "";
-                      })()}
-                    </span>
-                    <svg
-                      className={`w-5 h-5 text-gray-400 transition-transform ${leaveTypeDropdownOpen ? "rotate-180" : ""}`}
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </button>
-                  {leaveTypeDropdownOpen && (
-                    <div className="absolute left-0 right-0 top-full z-20 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-60 overflow-y-auto">
-                      {leaveTypes.length === 0 ? (
-                        <p className="p-3 text-sm text-gray-400">{t("noLeaveRequests")}</p>
-                      ) : (
-                        leaveTypes.map((lt) => (
-                          <div
-                            key={lt.leave_type}
-                            onMouseDown={(e) => {
-                              e.preventDefault();
-                              handleLeaveTypeSelect(lt.leave_type);
-                            }}
-                            className={`w-full p-3 text-left hover:bg-indigo-50 transition-colors flex justify-between items-center cursor-pointer ${
-                              formLeaveType === lt.leave_type
-                                ? "bg-indigo-50 text-indigo-600 font-medium"
-                                : "text-gray-700"
-                            }`}
-                          >
-                            {getTranslatedLeaveType(lt.leave_type)}
-                            <span className="float-right text-xs text-gray-400 mt-0.5">
-                              {t("available") || "Available"}: {lt.closing_balance}
-                            </span>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  )}
-                </div>
+                <SearchableSelect
+                  label={t("leaveType")}
+                  required
+                  placeholder={t("selectLeaveType")}
+                  searchPlaceholder={t("search") || "Search..."}
+                  value={formLeaveType}
+                  displayValue={formLeaveTypeDisplay}
+                  options={formLeaveTypeOptions}
+                  isOpen={formLeaveTypeDropdownOpen}
+                  onOpenChange={setFormLeaveTypeDropdownOpen}
+                  onSelect={handleLeaveTypeSelect}
+                  emptyMessage={t("noLeaveRequests")}
+                />
 
                    <div className="mt-3 relative w-full" data-dropdown>
                       <label className="block text-sm font-medium text-gray-600 mb-1">
@@ -1046,59 +1150,43 @@ const LeavePage = () => {
                   </h3>
 
                  <div className="mt-3">
-                    <label className="block text-sm font-medium text-gray-600 mb-1">
-                       {t("handOverDate") || "Hand Over Date"}
-                       <span className="text-red-500 ml-1">*</span>
-                    </label>
-                    <input
-                       type="date"
-                       value={handOverDate}
-                       onChange={(e) => setHandOverDate(e.target.value)}
-                       className="w-full p-3 border border-gray-200 rounded-xl bg-gray-50 text-gray-900 [color-scheme:light]"
+                    <DatePickerField
+                      label={t("handOverDate") || "Hand Over Date"}
+                      required
+                      value={handOverDate}
+                      onChange={setHandOverDate}
+                      placeholder={t("selectDate") || "Select date"}
                     />
                  </div>
 
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-600 mb-1">
-                        {t("fromDate")}
-                        <span className="text-red-500 ml-1">*</span>
-                      </label>
-                      <input
-                        type="date"
-                        value={fromDate}
-                        onChange={(e) => {
-                          setFromDate(e.target.value);
-                          if (toDate && e.target.value > toDate) setToDate("");
-                        }}
-                        className="w-full p-3 border border-gray-200 rounded-xl bg-gray-50 text-gray-900 [color-scheme:light]"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-600 mb-1">
-                        {t("toDate")}
-                        <span className="text-red-500 ml-1">*</span>
-                      </label>
-                      <input
-                        type="date"
-                        value={toDate}
-                        min={fromDate || undefined}
-                        onChange={(e) => setToDate(e.target.value)}
-                        className="w-full p-3 border border-gray-200 rounded-xl bg-gray-50 text-gray-900 [color-scheme:light]"
-                      />
-                    </div>
+                  <div className="grid grid-cols-2 gap-4 mt-3">
+                    <DatePickerField
+                      label={t("fromDate")}
+                      required
+                      value={fromDate}
+                      onChange={(val) => {
+                        setFromDate(val);
+                        if (toDate && val > toDate) setToDate("");
+                      }}
+                      placeholder={t("selectDate") || "Select date"}
+                    />
+                    <DatePickerField
+                      label={t("toDate")}
+                      required
+                      value={toDate}
+                      min={fromDate || undefined}
+                      onChange={setToDate}
+                      placeholder={t("selectDate") || "Select date"}
+                    />
                 </div>
 
                  <div className="mt-3">
-                    <label className="block text-sm font-medium text-gray-600 mb-1">
-                       {t("firstDayReportToWork") || "First Day Report to Work"}
-                       <span className="text-red-500 ml-1">*</span>
-                    </label>
-                    <input
-                       type="date"
-                       value={firstDayReportToWork}
-                       onChange={(e) => setFirstDayReportToWork(e.target.value)}
-                       className="w-full p-3 border border-gray-200 rounded-xl bg-gray-50 text-gray-900 [color-scheme:light]"
+                    <DatePickerField
+                      label={t("firstDayReportToWork") || "First Day Report to Work"}
+                      required
+                      value={firstDayReportToWork}
+                      onChange={setFirstDayReportToWork}
+                      placeholder={t("selectDate") || "Select date"}
                     />
                  </div>
 
@@ -1139,17 +1227,14 @@ const LeavePage = () => {
                       exit={{ opacity: 0, height: 0 }}
                       className="overflow-hidden"
                     >
-                      <label className="block text-sm font-medium text-gray-600 mb-1">
-                        {t("halfDayDate") || "Half-Day Date"}
-                        <span className="text-red-500 ml-1">*</span>
-                      </label>
-                      <input
-                        type="date"
+                      <DatePickerField
+                        label={t("halfDayDate") || "Half-Day Date"}
+                        required
                         value={halfDayDate}
-                        onChange={(e) => setHalfDayDate(e.target.value)}
+                        onChange={setHalfDayDate}
                         min={fromDate || undefined}
                         max={toDate || undefined}
-                        className="w-full p-3 border border-gray-200 rounded-xl bg-gray-50 text-gray-900 [color-scheme:light]"
+                        placeholder={t("selectDate") || "Select date"}
                       />
                     </motion.div>
                   )}
@@ -1198,15 +1283,12 @@ const LeavePage = () => {
                       exit={{ opacity: 0, height: 0 }}
                       className="overflow-hidden"
                     >
-                      <label className="block text-sm font-medium text-gray-600 mb-1">
-                        {t("expectedDeliveryDate") || "Expected Delivery Date"}
-                        <span className="text-red-500 ml-1">*</span>
-                      </label>
-                      <input
-                        type="date"
+                      <DatePickerField
+                        label={t("expectedDeliveryDate") || "Expected Delivery Date"}
+                        required
                         value={customExpectedDeliveryDate}
-                        onChange={(e) => setCustomExpectedDeliveryDate(e.target.value)}
-                        className="w-full p-3 border border-gray-200 rounded-xl bg-gray-50 text-gray-900 [color-scheme:light]"
+                        onChange={setCustomExpectedDeliveryDate}
+                        placeholder={t("selectDate") || "Select date"}
                       />
                     </motion.div>
                   )}
@@ -1220,15 +1302,12 @@ const LeavePage = () => {
                       exit={{ opacity: 0, height: 0 }}
                       className="overflow-hidden"
                     >
-                      <label className="block text-sm font-medium text-gray-600 mb-1">
-                        {t("childBirthDate") || "Child Birth Date"}
-                        <span className="text-red-500 ml-1">*</span>
-                      </label>
-                      <input
-                        type="date"
+                      <DatePickerField
+                        label={t("childBirthDate") || "Child Birth Date"}
+                        required
                         value={customChildBirthDate}
-                        onChange={(e) => setCustomChildBirthDate(e.target.value)}
-                        className="w-full p-3 border border-gray-200 rounded-xl bg-gray-50 text-gray-900 [color-scheme:light]"
+                        onChange={setCustomChildBirthDate}
+                        placeholder={t("selectDate") || "Select date"}
                       />
                     </motion.div>
                   )}
@@ -1542,7 +1621,7 @@ const LeavePage = () => {
                 exit={{ scale: 0.8, opacity: 0 }}
                 transition={{ type: "spring", stiffness: 400, damping: 28 }}
                 onClick={(e) => e.stopPropagation()}
-                className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden"
+                className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl overflow-hidden"
               >
                 <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
                   <div>
@@ -1562,6 +1641,17 @@ const LeavePage = () => {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                     </svg>
                   </button>
+                </div>
+
+                <div className="px-5 py-4 border-b border-gray-100">
+                  <LeaveCalendarView
+                    fromDate={selectedLeave.from_date}
+                    toDate={selectedLeave.to_date}
+                    leaveType={getTranslatedLeaveType(selectedLeave.leave_type)}
+                    totalLeaveDays={selectedLeave.total_leave_days}
+                    holidays={leaveHolidays}
+                    t={t}
+                  />
                 </div>
 
                 <div className="px-5 py-4 space-y-3">
@@ -1593,13 +1683,80 @@ const LeavePage = () => {
                       label={t("appliedOn") || "Applied On"}
                       value={formatDate(selectedLeave.posting_date)}
                     />
+                   )}
+                </div>
+
+                {/* Approval Flow */}
+                <div className="px-5 py-4 border-t border-gray-100">
+                  <h4 className="text-sm font-semibold text-gray-700 mb-4">{t("approvalTimeline") || "Approval Timeline"}</h4>
+                  <LeaveApprovalFlow
+                    loading={approvalFlowLoading}
+                    createdBy={leaveApplicationDetail?.employee_name || "-"}
+                    approverName={approverDisplayName}
+                    documentStatus={selectedLeave.status}
+                    createdAt={selectedLeave.posting_date ? formatDate(selectedLeave.posting_date) : undefined}
+                    labels={{
+                      createdBy: t("createdBy") || "Created By",
+                      leaveApprover: t("leaveApprover") || "Leave Approver",
+                      completed: t("completed") || "Completed",
+                      pending: t("pendingStatus") || "Pending",
+                      approved: t("approved") || "Approved",
+                      rejected: t("rejected") || "Rejected",
+                    }}
+                  />
+                  {!approvalFlowLoading && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        import("jspdf").then(({ jsPDF }) => {
+                          const doc = new jsPDF();
+                          const lineHeight = 7;
+                          let y = 20;
+
+                          doc.setFontSize(14);
+                          doc.text("Leave Application Timeline", 14, y);
+                          y += lineHeight + 4;
+
+                          doc.setFontSize(10);
+                          doc.text(`Application: ${selectedLeave.name || "-"}`, 14, y);
+                          y += lineHeight;
+                          doc.text(`Leave Type: ${selectedLeave.leave_type || "-"}`, 14, y);
+                          y += lineHeight;
+                          doc.text(`From: ${selectedLeave.from_date || "-"}`, 14, y);
+                          y += lineHeight;
+                          doc.text(`To: ${selectedLeave.to_date || "-"}`, 14, y);
+                          y += lineHeight;
+                          doc.text(`Status: ${selectedLeave.status || "-"}`, 14, y);
+                          y += lineHeight + 4;
+
+                          doc.setFontSize(11);
+                          doc.text(t("approvalTimeline") || "Approval Timeline", 14, y);
+                          y += lineHeight + 2;
+
+                          doc.setFontSize(9);
+                          doc.text(`${t("createdBy") || "Created By"}: ${leaveApplicationDetail?.employee_name || "-"}`, 20, y);
+                          y += lineHeight;
+                          doc.text(`  ${t("completed") || "Completed"}`, 24, y);
+                          y += lineHeight + 2;
+                          doc.text(`${t("leaveApprover") || "Leave Approver"}: ${approverDisplayName || "-"}`, 20, y);
+                          y += lineHeight;
+                          doc.text(`  ${selectedLeave.status || "-"}`, 24, y);
+
+                          const fileName = `Leave_Timeline_${selectedLeave.name || ""}.pdf`;
+                          doc.save(fileName);
+                        });
+                      }}
+                      className="mt-4 w-full bg-indigo-600 text-white py-2.5 rounded-xl text-sm font-medium hover:bg-indigo-700 transition-colors"
+                    >
+                      {t("downloadTimeline") || "Download Timeline"}
+                    </button>
                   )}
-               </div>
-            </motion.div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
+                </div>
+             </motion.div>
+             </motion.div>
+           </>
+         )}
+       </AnimatePresence>
     </div>
   );
 };

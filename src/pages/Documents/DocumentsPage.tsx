@@ -2,6 +2,11 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLanguage } from "../../i18n/LanguageContext";
 import { useTheme } from "../../store/ThemeContext";
+import {
+  EMPLOYEE_PAGE_CONTAINER,
+  getListItemCardClass,
+  getPageCardStyle,
+} from "../../utils/pageCardStyles";
 
 // Document types
 interface Document {
@@ -96,7 +101,7 @@ const DocumentsPage = () => {
   };
 
   return (
-    <div className="p-4 space-y-6">
+    <div className={EMPLOYEE_PAGE_CONTAINER}>
       {/* Header */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
@@ -112,7 +117,7 @@ const DocumentsPage = () => {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.1 }}
-              className={`${stat.color} rounded-2xl p-4 text-center`}
+              className={`${stat.color} rounded-2xl p-4 text-center shadow-sm`}
             >
               <p className={`text-xl font-bold ${stat.textColor}`}>{stat.value}</p>
               <p className="text-xs text-gray-500 mt-1">{stat.label}</p>
@@ -125,7 +130,7 @@ const DocumentsPage = () => {
       <div className="relative">
         <button
           onClick={() => setDropdownOpen(!dropdownOpen)}
-          className={`w-full shadow-lg p-4 flex items-center justify-between ${theme === 'neon-green' ? 'neon-card' : 'bg-white rounded-2xl'}`}
+          className={`w-full ${getPageCardStyle(theme)} p-4 flex items-center justify-between`}
         >
           <div className="flex items-center gap-3">
             <span className="text-2xl">{currentOption?.icon}</span>
@@ -177,21 +182,20 @@ const DocumentsPage = () => {
 
       {/* My Documents View */}
       {activeView === "my_documents" && (
-        <div className={`shadow-lg overflow-hidden ${theme === 'neon-green' ? 'neon-card' : 'bg-white rounded-2xl'}`}>
+        <div className="space-y-3">
           {documents.length === 0 ? (
-            <div className="p-8 text-center text-gray-500">
+            <div className={`${getPageCardStyle(theme)} p-8 text-center text-gray-500`}>
               <p>{t("noDocumentsFound")}</p>
             </div>
           ) : (
-            <div className="divide-y divide-gray-100">
-              {documents.map((doc, index) => (
-                <motion.div
-                  key={doc.id}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: index * 0.05 }}
-                  className="p-4 hover:bg-indigo-50 cursor-pointer transition-colors"
-                >
+            documents.map((doc, index) => (
+              <motion.div
+                key={doc.id}
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: index * 0.05 }}
+                className={getListItemCardClass(theme)}
+              >
                   <div className="flex items-center gap-4">
                     <div className="h-12 w-12 rounded-xl bg-gray-100 flex items-center justify-center text-2xl">
                       {typeIcons[doc.type] || "📄"}
@@ -216,15 +220,14 @@ const DocumentsPage = () => {
                     </div>
                   </div>
                 </motion.div>
-              ))}
-            </div>
+              ))
           )}
         </div>
       )}
 
       {/* Upload Document View */}
       {activeView === "upload_document" && (
-        <div className={`shadow-lg p-6 space-y-4 ${theme === 'neon-green' ? 'neon-card' : 'bg-white rounded-2xl'}`}>
+        <div className={`${getPageCardStyle(theme)} p-6 space-y-4`}>
           <h2 className="font-semibold text-gray-800 mb-4">{t("uploadNewDocument")}</h2>
 
           {/* Upload Area */}

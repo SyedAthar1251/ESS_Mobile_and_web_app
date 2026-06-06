@@ -76,5 +76,21 @@
   "relationshipTypeRequired": "Relationship type is required",
   "loadError": "Failed to load leave data",
   "appliedOn": "Applied On",
-  "noFileChosen": "No file chosen"
+  "noFileChosen": "No file chosen",
+  "expired": "Expired",
+  "approvalTimeline": "Approval Timeline",
+  "inProgress": "In Progress",
+  "waiting": "Waiting",
+  "completed": "Completed",
+  "waitingFor": "Waiting For",
+  "downloadTimeline": "Download Timeline",
+  "biometricVerification": "Biometric Verification",
+  "biometricVerificationFailed": "Biometric verification failed.",
+  "calendarDays": "Calendar days",
+  "publicHolidays": "Public holidays",
+  "weekendDays": "Weekend days",
+  "daysDeducted": "Days deducted",
+  "status": "Status",
+  "createdBy": "Created By",
+  "leaveApprover": "Leave Approver"
 }

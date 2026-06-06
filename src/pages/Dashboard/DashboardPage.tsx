@@ -3,6 +3,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Capacitor } from "@capacitor/core";
 import { Geolocation } from "@capacitor/geolocation";
+import { NativeBiometric } from "@capgo/capacitor-native-biometric";
 import useLiveClock from "../../utils/useLiveClock";
 import { useLanguage } from "../../i18n/LanguageContext";
 import { useAuth } from "../../auth/useAuth";
@@ -10,15 +11,33 @@ import { useTheme } from "../../store/ThemeContext";
 import { createEmployeeLog, getAttendanceDetailsDashboard, getEmployeeCheckinList, CheckinListItem } from "../../services/attendance.service";
 import { getDashboard, DashboardData } from "../../services/dashboard.service";
 import PunchSlider from "../../components/PunchSlider";
+import { getPageCardStyle } from "../../utils/pageCardStyles";
 // import ComingSoon from "../../components/ComingSoon"; // Face biometric feature commented out
 
 
-// Helper to get today's date string in local time (YYYY-MM-DD) - MUST be defined before component
+// Get today's date string in local time (YYYY-MM-DD) - MUST be defined before component
 const getTodayString = () => {
   const now = new Date();
   const year = now.getFullYear();
   const month = String(now.getMonth() + 1).padStart(2, '0');
   const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+// Get today's date string in UTC (YYYY-MM-DD) - for API comparison
+const getTodayStringUTC = () => {
+  const now = new Date();
+  const year = now.getUTCFullYear();
+  const month = String(now.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(now.getUTCDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+// Get date string from a Date object (local time)
+const getDateString = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 };
 
@@ -36,14 +55,23 @@ const DashboardPage = () => {
   };
 
   const [isPunchedIn, setIsPunchedIn] = useState<boolean>(() => {
+    const savedDate = localStorage.getItem("ess_punch_date");
+    const today = getTodayString();
+    if (savedDate !== today) return false;
     const saved = localStorage.getItem("ess_punch_state");
     return saved === "true";
   });
   const [punchInTime, setPunchInTime] = useState<Date | null>(() => {
+    const savedDate = localStorage.getItem("ess_punch_date");
+    const today = getTodayString();
+    if (savedDate !== today) return null;
     const savedTime = localStorage.getItem("ess_punch_time");
     return savedTime ? new Date(savedTime) : null;
   });
   const [punchInTimeStr, setPunchInTimeStr] = useState<string | null>(() => {
+    const savedDate = localStorage.getItem("ess_punch_date");
+    const today = getTodayString();
+    if (savedDate !== today) return null;
     const savedTime = localStorage.getItem("ess_punch_time");
     if (!savedTime) return null;
     const date = new Date(savedTime);
@@ -108,12 +136,21 @@ const DashboardPage = () => {
    // const [showCamera, setShowCamera] = useState(false); // Face biometric - commented out
    // const [showDevModal, setShowDevModal] = useState(false); // Face biometric - commented out
   
-  // Simple notification state
-  const [notification, setNotification] = useState<{
-    message: string;
-    type: 'success' | 'error' | 'warning' | 'info';
-    visible: boolean;
-  }>({ message: '', type: 'success', visible: false });
+   // Error alert dialog state
+   const [errorAlert, setErrorAlert] = useState<{
+     show: boolean;
+     message: string;
+   }>({ show: false, message: '' });
+
+   const showErrorAlert = (message: string) => {
+     setErrorAlert({ show: true, message });
+   };
+   // Simple notification state
+   const [notification, setNotification] = useState<{
+     message: string;
+     type: 'success' | 'warning' | 'info';
+     visible: boolean;
+   }>({ message: '', type: 'success', visible: false });
   
   // Auto-hide notification after 3 seconds
   useEffect(() => {
@@ -125,7 +162,7 @@ const DashboardPage = () => {
     }
   }, [notification.visible]);
   
-  const showNotification = (message: string, type: 'success' | 'error' | 'warning' | 'info' = 'success') => {
+  const showNotification = (message: string, type: 'success' | 'warning' | 'info' = 'success') => {
     setNotification({ message, type, visible: true });
   };
   
@@ -147,7 +184,8 @@ const DashboardPage = () => {
     const datePart = dateString.includes('T') 
       ? dateString.split('T')[0] 
       : dateString.split(' ')[0];
-    return datePart === getTodayString();
+    const today = getTodayString();
+    return datePart === today;
   };
 
    // Daily punch restriction state - initialize from localStorage
@@ -172,7 +210,7 @@ const DashboardPage = () => {
    const [selectedAction, setSelectedAction] = useState<'punch_in' | 'break_out' | 'break_in' | 'punch_out' | null>(null);
 
   // Fetch today's attendance from API on mount to get accurate state
-  const fetchTodayAttendance = useCallback(async () => {
+const fetchTodayAttendance = useCallback(async () => {
     if (!user?.employeeId) return;
     
     try {
@@ -181,21 +219,44 @@ const DashboardPage = () => {
       
       // Get today's date string
       const todayStr = getTodayString();
-      
       console.log("[DashboardPage] Today's date:", todayStr);
       console.log("[DashboardPage] Raw checkins:", checkins);
       
-      // Filter checkins for today only
       const todayCheckins = checkins?.filter(checkin => {
         if (!checkin.time) return false;
-        const datePart = checkin.time.includes('T') 
-          ? checkin.time.split('T')[0] 
-          : checkin.time.split(' ')[0];
-        return datePart === todayStr;
+        // Parse the date and compare using local time
+        const checkinDate = new Date(checkin.time);
+        const checkinDateStr = getDateString(checkinDate);
+        return checkinDateStr === todayStr;
       }) || [];
       
+      // Debug: Log the first checkin if exists
+      if (checkins && checkins.length > 0) {
+        console.log("[DashboardPage] First checkin object:", JSON.stringify(checkins[0], null, 2));
+      }
+      
 console.log("[DashboardPage] Today's checkins:", todayCheckins);
-       
+        
+      // If API returns no checkins for today, reset all states to allow fresh start
+      if (todayCheckins.length === 0) {
+        console.log("[DashboardPage] No checkins from API for today, resetting state for fresh start");
+        setIsPunchedIn(false);
+        setHasPunchedInToday(false);
+        setHasPunchedOutToday(false);
+        setCompletedToday(false);
+        setIsOnBreak(false);
+        setHasTakenBreakToday(false);
+        // Clear localStorage for today
+        const today = getTodayString();
+        localStorage.removeItem("ess_punch_state");
+        localStorage.removeItem("ess_punch_time");
+        localStorage.setItem("ess_punch_date", today);
+        localStorage.setItem("ess_punched_in_today", "false");
+        localStorage.setItem("ess_punched_out_today", "false");
+        localStorage.setItem("ess_completed_today", "false");
+        return;
+      }
+        
       // Sort checkins by time to get the last record
       const sortedCheckins = [...todayCheckins].sort(
         (a, b) => new Date(b.time).getTime() - new Date(a.time).getTime()
@@ -217,18 +278,21 @@ console.log("[DashboardPage] isPunchedIn:", isPunchedIn);
       const punchOutToday = todayCheckins.find(c => c.log_type?.toUpperCase() === "OUT");
        
       // Check if break was taken today (has break out but not final punch out)
-      // Logic: If we have more INS than OUTS, or if last action was IN after OUT, we're still in cycle
+      // Logic: If we have more INS than OUTS, the user is still in an incomplete cycle
       const inCount = todayCheckins.filter(c => c.log_type?.toUpperCase() === "IN").length;
       const outCount = todayCheckins.filter(c => c.log_type?.toUpperCase() === "OUT").length;
-      // If more INS than OUTS, or last checkin was IN, we're in incomplete cycle (break taken but not punched out)
-      const isIncompleteCycle = inCount > outCount || (inCount === outCount && inCount > 0 && punchInToday);
+      // Incomplete cycle means more INS than OUTS (user hasn't completed the day)
+      const isIncompleteCycle = inCount > outCount;
       
-      // Set button state - use API only
-      setIsPunchedIn(isPunchedIn);
-      setHasPunchedInToday(!!punchInToday);
-      setHasPunchedOutToday(!!punchOutToday);
-      // Only mark as completed if full cycle (OUT after IN, and break cycle is complete)
-      setCompletedToday(!!punchOutToday && !isIncompleteCycle);
+      // Set button state - use API only if we have data, otherwise trust localStorage
+      if (todayCheckins.length > 0) {
+        setIsPunchedIn(isPunchedIn);
+        setHasPunchedInToday(!!punchInToday);
+        setHasPunchedOutToday(!!punchOutToday);
+        // Only mark as completed if full cycle (OUT after IN, and break cycle is complete)
+        setCompletedToday(!!punchOutToday && !isIncompleteCycle);
+      }
+      // If no checkins from API, keep localStorage state (don't overwrite)
       
       // Set punch in time if punched in
       if (punchInToday && punchInToday.time && !punchOutToday) {
@@ -354,13 +418,6 @@ console.log("[DashboardPage] isPunchedIn:", isPunchedIn);
       }
     };
 
-    // Also fetch immediately on mount to get fresh state
-    if (user?.employeeId) {
-      console.log("[DashboardPage] Fetching attendance on mount...");
-      fetchTodayAttendance();
-    }
-
-    // Handle both visibility change and focus events (better for mobile)
     document.addEventListener("visibilitychange", handleVisibilityChange);
     window.addEventListener("focus", handleVisibilityChange);
     
@@ -372,6 +429,8 @@ console.log("[DashboardPage] isPunchedIn:", isPunchedIn);
 
   // Save punch state to localStorage when it changes
   useEffect(() => {
+    const today = getTodayString();
+    localStorage.setItem("ess_punch_date", today);
     localStorage.setItem("ess_punch_state", isPunchedIn ? "true" : "false");
     if (isPunchedIn && punchInTime) {
       localStorage.setItem("ess_punch_time", punchInTime.toISOString());
@@ -382,6 +441,8 @@ console.log("[DashboardPage] isPunchedIn:", isPunchedIn);
 
   // Save break state to localStorage when it changes
   useEffect(() => {
+    const today = getTodayString();
+    localStorage.setItem("ess_punch_date", today);
     localStorage.setItem("ess_break_state", isOnBreak ? "true" : "false");
     if (isOnBreak && breakOutTime) {
       localStorage.setItem("ess_break_time", breakOutTime.toISOString());
@@ -392,6 +453,8 @@ console.log("[DashboardPage] isPunchedIn:", isPunchedIn);
 
   // Save break in time to localStorage when it changes
   useEffect(() => {
+    const today = getTodayString();
+    localStorage.setItem("ess_punch_date", today);
     if (breakInTime) {
       localStorage.setItem("ess_break_in_time", breakInTime.toISOString());
     } else {
@@ -399,25 +462,89 @@ console.log("[DashboardPage] isPunchedIn:", isPunchedIn);
     }
   }, [breakInTime]);
 
-  // Get location on mount
-  useEffect(() => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setCurrentLocation(`${position.coords.latitude.toFixed(4)}, ${position.coords.longitude.toFixed(4)}`);
-          setLocationDenied(false);
-        },
-        (error) => {
-          console.error("[DashboardPage] Location error:", error);
-          setCurrentLocation("Location unavailable");
-          setLocationDenied(true);
+  // Cached location state - prevents re-requesting permission
+  const [locationTimestamp, setLocationTimestamp] = useState<number>(0);
+  const LOCATION_CACHE_MS = 30000; // Cache location for 30 seconds
+
+  const fetchLocation = useCallback(async (): Promise<string | null> => {
+    if (Capacitor.isNativePlatform()) {
+      try {
+        const canRequest = await Geolocation.checkPermissions();
+        if (canRequest.location !== "granted") {
+          await Geolocation.requestPermissions();
         }
-      );
+        const position = await Geolocation.getCurrentPosition({
+          enableHighAccuracy: true,
+          timeout: 10000,
+        });
+        const str = `${position.coords.latitude},${position.coords.longitude}`;
+        setCurrentLocation(str);
+        setLocationDenied(false);
+        setLocationTimestamp(Date.now());
+        return str;
+      } catch (err: any) {
+        console.error("[DashboardPage] Location error:", err);
+        setLocationDenied(true);
+        return null;
+      }
     } else {
-      setCurrentLocation("Location unavailable");
-      setLocationDenied(true);
+      if (navigator.geolocation) {
+        try {
+          const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+            navigator.geolocation.getCurrentPosition(resolve, reject, {
+              enableHighAccuracy: true,
+              timeout: 10000,
+            });
+          });
+          const str = `${position.coords.latitude.toFixed(4)}, ${position.coords.longitude.toFixed(4)}`;
+          setCurrentLocation(str);
+          setLocationDenied(false);
+          setLocationTimestamp(Date.now());
+          return str;
+        } catch (err: any) {
+          console.error("[DashboardPage] Location error:", err);
+          setLocationDenied(true);
+          return null;
+        }
+      }
+      return null;
     }
   }, []);
+
+  const getLocationString = useCallback((): string => {
+    if (Date.now() - locationTimestamp < LOCATION_CACHE_MS && currentLocation && currentLocation !== "Location unavailable") {
+      return currentLocation;
+    }
+    return currentLocation;
+  }, [currentLocation, locationTimestamp]);
+
+  const verifyBiometrics = useCallback(async (): Promise<boolean> => {
+    if (!Capacitor.isNativePlatform()) {
+      return true;
+    }
+    try {
+      const result = await NativeBiometric.isAvailable();
+      if (!result.isAvailable) {
+        return true;
+      }
+      await NativeBiometric.verifyIdentity({
+        reason: "Verify your identity to record attendance",
+        title: "Biometric Verification",
+        subtitle: "Confirm you are the device owner",
+        description: "Use fingerprint or face recognition to continue",
+        negativeButtonText: "Cancel",
+      });
+      return true;
+    } catch (error: any) {
+      console.error("[DashboardPage] Biometric verification failed:", error);
+      return false;
+    }
+  }, []);
+
+  // Get location on mount
+  useEffect(() => {
+    fetchLocation();
+  }, [fetchLocation]);
 
   const formatTime = (date: Date) => {
     return date.toLocaleTimeString(language === "ar" ? "ar-SA" : "en-US", {
@@ -453,22 +580,17 @@ console.log("[DashboardPage] isPunchedIn:", isPunchedIn);
     setIsLoading(true);
     try {
       // Get location for mobile
-      let locationString = currentLocation;
+      let locationString = getLocationString();
       let mobileLocationError = false;
 
-      if (Capacitor.isNativePlatform()) {
+      if (Capacitor.isNativePlatform() && (Date.now() - locationTimestamp >= LOCATION_CACHE_MS || !locationString || locationString === "Location unavailable")) {
         try {
           console.log("[DashboardPage] Getting location for punch out...");
-          const position = await Geolocation.getCurrentPosition({
-            enableHighAccuracy: true,
-            timeout: 10000,
-          });
-          
-          const { latitude, longitude } = position.coords;
-          locationString = `${latitude},${longitude}`;
+          const fetchedLocation = await fetchLocation();
+          if (fetchedLocation) {
+            locationString = fetchedLocation;
+          }
           console.log("[DashboardPage] Got location for punch out:", locationString);
-          setCurrentLocation(locationString);
-          setLocationDenied(false);
         } catch (locationError: any) {
           console.error("[DashboardPage] Location error for punch out:", locationError);
           mobileLocationError = true;
@@ -477,9 +599,9 @@ console.log("[DashboardPage] isPunchedIn:", isPunchedIn);
 
       // Validate location
       if (!locationString || locationString === "Location unavailable" || locationDenied || mobileLocationError) {
-        setIsLoading(false);
-        showNotification("Location access is required for attendance. Please enable location permission and try again.", "error");
-        return;
+         setIsLoading(false);
+         showErrorAlert("Location access is required for attendance. Please enable location permission and try again.");
+         return;
       }
 
       console.log("[DashboardPage] Punch OUT action, Location:", locationString);
@@ -497,14 +619,14 @@ console.log("[DashboardPage] isPunchedIn:", isPunchedIn);
       setHasPunchedOutToday(true);
       setCompletedToday(true);
       
-      // Save to localStorage
-      saveDailyPunchState(true, true, true);
+      // Save to localStorage - punchedIn is false after checkout
+      saveDailyPunchState(false, true, true);
       
-      // Show success message
-      showNotification("Punch Out recorded successfully!", "success");
+       // Show success message
+       showNotification("Punch Out recorded successfully!", "success");
     } catch (error: any) {
       console.error("[DashboardPage] Punch Out error:", error);
-      showNotification(error.message || "Failed to record punch out. Please try again.", "error");
+      showErrorAlert(error.message || "Failed to record punch out. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -536,7 +658,7 @@ console.log("[DashboardPage] isPunchedIn:", isPunchedIn);
          setSelectedAction(null);
        } catch (error: any) {
          console.error("[DashboardPage] Action error:", error);
-         showNotification(error.message || "Failed to record attendance. Please try again.", "error");
+          showErrorAlert(error.message || "Failed to record attendance. Please try again.");
          setSelectedAction(null);
        } finally {
          setIsLoading(false);
@@ -548,43 +670,49 @@ console.log("[DashboardPage] isPunchedIn:", isPunchedIn);
    }, [selectedAction]);
 
    // Core punch logic for punch_in, break_out, break_in (punch_out handled separately)
-   const performPunchAction = async (action: 'punch_in' | 'break_out' | 'break_in') => {
-     // Validation
-     if (completedToday) {
-       showNotification("You have already completed your attendance for today.", "error");
-       return;
-     }
-     if (action === 'punch_in' && hasPunchedInToday) {
-       showNotification("You have already punched in today.", "error");
-       return;
-     }
+    const performPunchAction = async (action: 'punch_in' | 'break_out' | 'break_in') => {
+      // Validation
+      if (completedToday) {
+         showErrorAlert("You have already completed your attendance for today.");
+         return;
+       }
+       if (action === 'punch_in' && hasPunchedInToday) {
+         showErrorAlert("You have already punched in today.");
+        return;
+      }
+
+      // Biometric verification only for punch_in
+      if (action === 'punch_in') {
+        const biometricVerified = await verifyBiometrics();
+        if (!biometricVerified) {
+          showErrorAlert(t("biometricVerificationFailed") || "Biometric verification failed.");
+          return;
+        }
+      }
 
      const logType = action === 'punch_in' || action === 'break_in' ? "IN" : "OUT";
 
-     // Get location
-     let locationString = currentLocation;
-     let mobileLocationError = false;
+      // Get location
+      let locationString = getLocationString();
+      let mobileLocationError = false;
 
-     if (Capacitor.isNativePlatform()) {
-       try {
-         console.log("[DashboardPage] Getting location for", action, "...");
-         const position = await Geolocation.getCurrentPosition({
-           enableHighAccuracy: true,
-           timeout: 10000,
-         });
-         const { latitude, longitude } = position.coords;
-         locationString = `${latitude},${longitude}`;
-         setCurrentLocation(locationString);
-         setLocationDenied(false);
-       } catch (locationError: any) {
-         console.error("[DashboardPage] Location error:", locationError);
-         mobileLocationError = true;
-       }
-     }
+      if (Capacitor.isNativePlatform() && (Date.now() - locationTimestamp >= LOCATION_CACHE_MS || !locationString || locationString === "Location unavailable")) {
+        try {
+          console.log("[DashboardPage] Getting location for", action, "...");
+          const fetchedLocation = await fetchLocation();
+          if (fetchedLocation) {
+            locationString = fetchedLocation;
+          }
+          console.log("[DashboardPage] Got location for", action, ":", locationString);
+        } catch (locationError: any) {
+          console.error("[DashboardPage] Location error:", locationError);
+          mobileLocationError = true;
+        }
+      }
 
      if (!locationString || locationString === "Location unavailable" || locationDenied || mobileLocationError) {
-       showNotification("Location access is required for attendance. Please enable location permission and try again.", "error");
-       return;
+        showErrorAlert("Location access is required for attendance. Please enable location permission and try again.");
+        return;
      }
 
      console.log("[DashboardPage] Punch action:", action, "LogType:", logType, "Location:", locationString);
@@ -594,42 +722,54 @@ console.log("[DashboardPage] isPunchedIn:", isPunchedIn);
 
      const now = new Date();
 
-     if (action === 'punch_in') {
-       setPunchInTime(now);
-       setPunchInTimeStr(formatTime(now));
-       setIsPunchedIn(true);
-       setHasPunchedInToday(true);
-       saveDailyPunchState(true, false, false);
-       showNotification("Punch In recorded successfully!", "success");
-     } else if (action === 'break_out') {
-       setIsOnBreak(true);
-       setBreakOutTime(now);
-       setBreakOutTimeStr(formatTime(now));
-       setBreakInTime(null);
-       setBreakInTimeStr(null);
-       setHasTakenBreakToday(true);
-       localStorage.setItem("ess_break_state", "true");
-       localStorage.setItem("ess_break_time", now.toISOString());
-       localStorage.setItem("ess_break_taken_today", "true");
-       localStorage.removeItem("ess_break_in_time");
-       showNotification("Break Out recorded successfully!", "success");
-     } else if (action === 'break_in') {
-       setIsOnBreak(false);
-       setBreakInTime(now);
-       setBreakInTimeStr(formatTime(now));
-       localStorage.setItem("ess_break_state", "false");
-       localStorage.setItem("ess_break_in_time", now.toISOString());
-       showNotification("Break In recorded successfully!", "success");
+if (action === 'punch_in') {
+        setPunchInTime(now);
+        setPunchInTimeStr(formatTime(now));
+        setIsPunchedIn(true);
+        setHasPunchedInToday(true);
+        // Save all punch state to localStorage immediately
+        const today = getTodayString();
+        localStorage.setItem("ess_punch_date", today);
+        localStorage.setItem("ess_punch_state", "true");
+        localStorage.setItem("ess_punch_time", now.toISOString());
+        localStorage.setItem("ess_punched_in_today", "true");
+        localStorage.setItem("ess_punched_out_today", "false");
+        localStorage.setItem("ess_completed_today", "false");
+         showNotification("Punch In recorded successfully!", "success");
+} else if (action === 'break_out') {
+        setIsOnBreak(true);
+        setBreakOutTime(now);
+        setBreakOutTimeStr(formatTime(now));
+        setBreakInTime(null);
+        setBreakInTimeStr(null);
+        setHasTakenBreakToday(true);
+        const today = getTodayString();
+        localStorage.setItem("ess_punch_date", today);
+        localStorage.setItem("ess_break_state", "true");
+        localStorage.setItem("ess_break_time", now.toISOString());
+        localStorage.setItem("ess_break_taken_today", "true");
+        localStorage.removeItem("ess_break_in_time");
+         showNotification("Break Out recorded successfully!", "success");
+} else if (action === 'break_in') {
+        setIsOnBreak(false);
+        setBreakInTime(now);
+        setBreakInTimeStr(formatTime(now));
+        const today = getTodayString();
+        localStorage.setItem("ess_punch_date", today);
+        localStorage.setItem("ess_break_state", "false");
+        localStorage.setItem("ess_break_in_time", now.toISOString());
+         showNotification("Break In recorded successfully!", "success");
      }
    };
 
-   // Helper to determine auto action for single-slider flow
-   const getAutoAction = (): 'punch_in' | 'break_in' | 'punch_out' | null => {
-     if (!isPunchedIn) return 'punch_in';
-     if (isOnBreak) return 'break_in';
-     if (hasTakenBreakToday) return 'punch_out';
-     return null;
-   };
+// Helper to determine auto action for single-slider flow
+    const getAutoAction = (): 'punch_in' | 'break_in' | 'punch_out' | null => {
+      if (completedToday) return null;
+      if (!isPunchedIn) return 'punch_in';
+      if (isOnBreak) return 'break_in';
+      // After resume work, allow punch out
+      return 'punch_out';
+    };
 
     // Generic punch trigger used by sliders (returns Promise for PunchSlider type)
     const triggerPunch = (action: 'punch_in' | 'break_out' | 'break_in' | 'punch_out'): Promise<void> => {
@@ -703,7 +843,6 @@ console.log("[DashboardPage] isPunchedIn:", isPunchedIn);
           exit={{ opacity: 0, y: -50 }}
           className={`fixed top-4 left-1/2 transform -translate-x-1/2 z-50 px-6 py-3 rounded-xl shadow-lg flex items-center gap-3 ${
             notification.type === 'success' ? 'bg-green-50 border border-green-200' :
-            notification.type === 'error' ? 'bg-red-50 border border-red-200' :
             notification.type === 'warning' ? 'bg-yellow-50 border border-yellow-200' :
             'bg-blue-50 border border-blue-200'
           }`}
@@ -711,11 +850,6 @@ console.log("[DashboardPage] isPunchedIn:", isPunchedIn);
           {notification.type === 'success' && (
             <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-          )}
-          {notification.type === 'error' && (
-            <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           )}
           {notification.type === 'warning' && (
@@ -730,7 +864,6 @@ console.log("[DashboardPage] isPunchedIn:", isPunchedIn);
           )}
           <span className={`text-sm font-medium ${
             notification.type === 'success' ? 'text-green-800' :
-            notification.type === 'error' ? 'text-red-800' :
             notification.type === 'warning' ? 'text-yellow-800' :
             'text-blue-800'
           }`}>
@@ -739,8 +872,41 @@ console.log("[DashboardPage] isPunchedIn:", isPunchedIn);
         </motion.div>
       )}
 
-      {/* Confirmation Modal */}
-      {confirmModal.show && (
+       {/* Error Alert Dialog */}
+       {errorAlert.show && (
+         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+           <motion.div
+             initial={{ opacity: 0 }}
+             animate={{ opacity: 1 }}
+             className="absolute inset-0 bg-black/50"
+             onClick={() => setErrorAlert({ show: false, message: '' })}
+           />
+           <motion.div
+             initial={{ scale: 0.9, opacity: 0 }}
+             animate={{ scale: 1, opacity: 1 }}
+             className="relative bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full"
+           >
+             <div className="flex items-center justify-center w-12 h-12 rounded-full bg-red-100 mx-auto mb-4">
+               <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+               </svg>
+             </div>
+             <h3 className="text-lg font-semibold text-center text-gray-800 mb-2">Error</h3>
+             <p className="text-gray-600 text-center text-sm mb-6 whitespace-pre-line">
+               {errorAlert.message}
+             </p>
+             <button
+               onClick={() => setErrorAlert({ show: false, message: '' })}
+               className="w-full px-4 py-2.5 bg-red-500 text-white rounded-xl font-medium hover:bg-red-600 transition-colors"
+             >
+               OK
+             </button>
+           </motion.div>
+         </div>
+       )}
+
+       {/* Confirmation Modal */}
+       {confirmModal.show && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <motion.div
               initial={{ opacity: 0 }}
@@ -876,16 +1042,16 @@ console.log("[DashboardPage] isPunchedIn:", isPunchedIn);
            transition={{ delay: 0.05, duration: 0.3 }}
            className="mb-5 flex justify-center"
          >
-           {!isPunchedIn && (
-             <div className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-green-50 to-emerald-50 rounded-full border border-green-200 shadow-md hover:shadow-lg transition-all">
-               <div className="w-5 h-5 rounded-full bg-green-500 flex items-center justify-center">
-                 <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                   <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                 </svg>
-               </div>
-               <span className="text-sm font-bold text-green-700">Ready to Start</span>
-             </div>
-           )}
+{!isPunchedIn && !completedToday && (
+              <div className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-green-50 to-emerald-50 rounded-full border border-green-200 shadow-md hover:shadow-lg transition-all">
+                <div className="w-5 h-5 rounded-full bg-green-500 flex items-center justify-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                <span className="text-sm font-bold text-green-700">Ready to Start</span>
+              </div>
+            )}
            {isPunchedIn && isOnBreak && (
              <div className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-full border border-blue-200 shadow-md hover:shadow-lg transition-all">
                <div className="w-5 h-5 rounded-full bg-blue-500 flex items-center justify-center">
@@ -923,7 +1089,7 @@ console.log("[DashboardPage] isPunchedIn:", isPunchedIn);
                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                  </svg>
                </div>
-               <span className="text-sm font-bold text-gray-600">Attendance Completed</span>
+               <span className="text-sm font-bold text-gray-600">Attendance complete</span>
              </div>
            )}
          </motion.div>
@@ -934,72 +1100,185 @@ console.log("[DashboardPage] isPunchedIn:", isPunchedIn);
            animate={{ opacity: 1, y: 0 }}
            transition={{ delay: 0.15, duration: 0.4 }}
            className="space-y-3"
-         >
-           {isPunchedIn && !isOnBreak && !hasTakenBreakToday ? (
-             // Optional break flow: two distinct action cards
-             <>
-               {/* Break Card */}
+>
+{!completedToday && isPunchedIn && !isOnBreak && !hasTakenBreakToday ? (
+              // Just punched in, show: Take a Break + Checkout cards
+              <>
+                {/* Break Card */}
+                <motion.div
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.2 }}
+                  className="relative group"
+                >
+                  <div className="absolute inset-0 bg-orange-100 rounded-2xl blur-xl opacity-40 group-hover:opacity-60 transition-opacity" />
+                  <div className="relative bg-white rounded-2xl border border-orange-200 shadow-md hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300 overflow-hidden">
+                    {/* Card header */}
+                    <div className="p-4 pb-2">
+                      <div className="flex items-center gap-3">
+                        <div className="w-11 h-11 rounded-full bg-orange-100 flex items-center justify-center">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                        </div>
+                        <div>
+                          <h3 className="text-base font-bold text-gray-800">Take a Break</h3>
+                          <p className="text-xs text-gray-500">Pause your work session</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Slider */}
+                    <div className="px-4 pb-4">
+                      <PunchSlider
+                        isPunchedIn={isPunchedIn}
+                        isLoading={isLoading}
+                        onPunch={() => triggerPunch('break_out')}
+                        disabled={completedToday}
+                        isOnBreak={isOnBreak}
+                        hasTakenBreakToday={hasTakenBreakToday}
+                        customLabel={completedToday ? "Completed" : "Slide to confirm"}
+                        customColor="bg-orange-500"
+                        slideDirection="left"
+                        title=""
+                      />
+                    </div>
+                  </div>
+                </motion.div>
+
+                {/* Checkout Card */}
+                <motion.div
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.3 }}
+                  className="relative group"
+                >
+                  <div className="absolute inset-0 bg-red-100 rounded-2xl blur-xl opacity-40 group-hover:opacity-60 transition-opacity" />
+                  <div className="relative bg-white rounded-2xl border border-red-200 shadow-lg hover:shadow-2xl hover:-translate-y-0.5 transition-all duration-300 overflow-hidden">
+                    {/* Card header */}
+                    <div className="p-4 pb-2">
+                      <div className="flex items-center gap-3">
+                        <div className="w-11 h-11 rounded-full bg-red-100 flex items-center justify-center">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                          </svg>
+                        </div>
+                        <div>
+                          <h3 className="text-base font-bold text-gray-800">Checkout</h3>
+                          <p className="text-xs text-gray-500">End today's work session</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Slider */}
+                    <div className="px-4 pb-4">
+                      <PunchSlider
+                        isPunchedIn={isPunchedIn}
+                        isLoading={isLoading}
+                        onPunch={() => triggerPunch('punch_out')}
+                        disabled={completedToday}
+                        isOnBreak={isOnBreak}
+                        hasTakenBreakToday={hasTakenBreakToday}
+                        customLabel={completedToday ? "Completed" : "Slide to confirm"}
+                        customColor="bg-red-500"
+                        slideDirection="left"
+                        title=""
+                      />
+                    </div>
+                  </div>
+                </motion.div>
+              </>
+            ) : isOnBreak ? (
+              // On break: show Resume Work slider
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+                className="relative group"
+              >
+                <div
+                  className={`
+                    absolute inset-0 rounded-2xl blur-xl opacity-40 group-hover:opacity-60 transition-opacity
+                    bg-blue-100
+                  `}
+                />
+                <div className={`
+                  relative bg-white rounded-2xl border shadow-md hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300 overflow-hidden
+                  border-blue-200
+                `}>
+                  {/* Card header */}
+                  <div className="p-4 pb-2">
+                    <div className="flex items-center gap-3">
+                      <div className={`
+                        w-11 h-11 rounded-full flex items-center justify-center
+                        bg-blue-100 text-blue-600
+                      `}>
+                        <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                        </svg>
+                      </div>
+                      <div>
+                        <h3 className="text-base font-bold text-gray-800">
+                          Resume Work
+                        </h3>
+                        <p className="text-xs text-gray-500">
+                          Return from break
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Slider */}
+                  <div className="px-4 pb-4">
+                    <PunchSlider
+                      isPunchedIn={isPunchedIn}
+                      isLoading={isLoading}
+                      onPunch={() => triggerPunch('break_in')}
+                      disabled={completedToday}
+                      isOnBreak={isOnBreak}
+                      hasTakenBreakToday={hasTakenBreakToday}
+                      customLabel={completedToday ? "Completed" : "Slide to confirm"}
+                      title=""
+                    />
+                  </div>
+                </div>
+              </motion.div>
+) : hasTakenBreakToday && !completedToday ? (
+               // After resume work, show single Checkout slider
                <motion.div
-                 initial={{ opacity: 0, x: -10 }}
-                 animate={{ opacity: 1, x: 0 }}
+                 initial={{ opacity: 0, y: 10 }}
+                 animate={{ opacity: 1, y: 0 }}
                  transition={{ delay: 0.2 }}
                  className="relative group"
                >
-                 <div className="absolute inset-0 bg-orange-100 rounded-2xl blur-xl opacity-40 group-hover:opacity-60 transition-opacity" />
-                 <div className="relative bg-white rounded-2xl border border-orange-200 shadow-md hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300 overflow-hidden">
+                 <div
+                   className={`
+                     absolute inset-0 rounded-2xl blur-xl opacity-40 group-hover:opacity-60 transition-opacity
+                     bg-red-100
+                   `}
+                 />
+                 <div className={`
+                   relative bg-white rounded-2xl border shadow-md hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300 overflow-hidden
+                   border-red-200
+                 `}>
                    {/* Card header */}
                    <div className="p-4 pb-2">
                      <div className="flex items-center gap-3">
-                       <div className="w-11 h-11 rounded-full bg-orange-100 flex items-center justify-center">
-                         <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                           <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                         </svg>
-                       </div>
-                       <div>
-                         <h3 className="text-base font-bold text-gray-800">Take a Break</h3>
-                         <p className="text-xs text-gray-500">Pause your work session</p>
-                       </div>
-                     </div>
-                   </div>
-
-                   {/* Slider */}
-                   <div className="px-4 pb-4">
-                     <PunchSlider
-                       isPunchedIn={isPunchedIn}
-                       isLoading={isLoading}
-                       onPunch={() => triggerPunch('break_out')}
-                       disabled={completedToday}
-                       isOnBreak={isOnBreak}
-                       hasTakenBreakToday={hasTakenBreakToday}
-                       customLabel="Slide to confirm"
-                       customColor="bg-orange-500"
-                       slideDirection="left"
-                       title=""
-                     />
-                   </div>
-                 </div>
-               </motion.div>
-
-               {/* Checkout Card */}
-               <motion.div
-                 initial={{ opacity: 0, x: -10 }}
-                 animate={{ opacity: 1, x: 0 }}
-                 transition={{ delay: 0.3 }}
-                 className="relative group"
-               >
-                 <div className="absolute inset-0 bg-red-100 rounded-2xl blur-xl opacity-40 group-hover:opacity-60 transition-opacity" />
-                 <div className="relative bg-white rounded-2xl border border-red-200 shadow-lg hover:shadow-2xl hover:-translate-y-0.5 transition-all duration-300 overflow-hidden">
-                   {/* Card header */}
-                   <div className="p-4 pb-2">
-                     <div className="flex items-center gap-3">
-                       <div className="w-11 h-11 rounded-full bg-red-100 flex items-center justify-center">
-                         <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                       <div className={`
+                         w-11 h-11 rounded-full flex items-center justify-center
+                         bg-red-100 text-red-600
+                       `}>
+                         <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                            <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                          </svg>
                        </div>
                        <div>
-                         <h3 className="text-base font-bold text-gray-800">Checkout</h3>
-                         <p className="text-xs text-gray-500">End today'\''s work session</p>
+                         <h3 className="text-base font-bold text-gray-800">
+                           Checkout
+                         </h3>
+                         <p className="text-xs text-gray-500">
+                           End your work session
+                         </p>
                        </div>
                      </div>
                    </div>
@@ -1013,7 +1292,7 @@ console.log("[DashboardPage] isPunchedIn:", isPunchedIn);
                        disabled={completedToday}
                        isOnBreak={isOnBreak}
                        hasTakenBreakToday={hasTakenBreakToday}
-                       customLabel="Slide to confirm"
+                       customLabel={completedToday ? "Completed" : "Slide to confirm"}
                        customColor="bg-red-500"
                        slideDirection="left"
                        title=""
@@ -1021,8 +1300,37 @@ console.log("[DashboardPage] isPunchedIn:", isPunchedIn);
                    </div>
                  </div>
                </motion.div>
-             </>
-           ) : (
+             ) : completedToday ? (
+               // After checkout, show Completed status only (no slider)
+               <motion.div
+                 initial={{ opacity: 0, y: 10 }}
+                 animate={{ opacity: 1, y: 0 }}
+                 transition={{ delay: 0.2 }}
+                 className="relative group"
+               >
+                 <div
+                   className={`
+                     absolute inset-0 rounded-2xl blur-xl opacity-40 group-hover:opacity-60 transition-opacity
+                     bg-gray-100
+                   `}
+                 />
+                 <div className={`
+                   relative bg-white rounded-2xl border shadow-md transition-all duration-300 overflow-hidden
+                   border-gray-200
+                 `}>
+                   <div className="p-4 text-center">
+                     <div className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-gray-50 to-slate-50 rounded-full border border-gray-200">
+                       <div className="w-5 h-5 rounded-full bg-gray-400 flex items-center justify-center">
+                         <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                           <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                         </svg>
+                       </div>
+                       <span className="text-sm font-bold text-gray-600">Completed</span>
+                     </div>
+                   </div>
+                 </div>
+               </motion.div>
+             ) : (
              // Single card flow: Punch In / Break In / Punch Out
              <motion.div
                initial={{ opacity: 0, y: 10 }}
@@ -1072,23 +1380,23 @@ console.log("[DashboardPage] isPunchedIn:", isPunchedIn);
                    </div>
                  </div>
 
-                 {/* Slider */}
-                 <div className="px-4 pb-4">
-                   <PunchSlider
-                     isPunchedIn={isPunchedIn}
-                     isLoading={isLoading}
-                     onPunch={() => {
-                       const action = getAutoAction();
-                       if (action) return triggerPunch(action);
-                       return Promise.resolve();
-                     }}
-                     disabled={completedToday}
-                     isOnBreak={isOnBreak}
-                     hasTakenBreakToday={hasTakenBreakToday}
-                     customLabel="Slide to confirm"
-                     title=""
-                   />
-                 </div>
+{/* Slider */}
+                  <div className="px-4 pb-4">
+                    <PunchSlider
+                      isPunchedIn={isPunchedIn}
+                      isLoading={isLoading}
+                      onPunch={() => {
+                        const action = getAutoAction();
+                        if (action) return triggerPunch(action);
+                        return Promise.resolve();
+                      }}
+                      disabled={completedToday}
+                      isOnBreak={isOnBreak}
+                      hasTakenBreakToday={hasTakenBreakToday}
+                      customLabel={completedToday ? "Completed" : "Slide to confirm"}
+                      title=""
+                    />
+                  </div>
                </div>
              </motion.div>
            )}
@@ -1133,21 +1441,14 @@ console.log("[DashboardPage] isPunchedIn:", isPunchedIn);
              <span className="text-gray-500">{locationStatus}</span>
            </div>
            {currentLocation && (
-             <button
-               onClick={() => {
-                 if (navigator.geolocation) {
-                   navigator.geolocation.getCurrentPosition(
-                     (pos) => {
-                       setCurrentLocation(`${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}`);
-                     },
-                     () => {}
-                   );
-                 }
-               }}
-               className="text-indigo-600 font-medium"
-             >
-               Refresh
-             </button>
+              <button
+                onClick={() => {
+                  fetchLocation();
+                }}
+                className="text-indigo-600 font-medium"
+              >
+                Refresh
+              </button>
            )}
          </div>
        </motion.div>
@@ -1216,7 +1517,7 @@ console.log("[DashboardPage] isPunchedIn:", isPunchedIn);
                initial={{ opacity: 0, y: 20 }}
                animate={{ opacity: 1, y: 0 }}
                transition={{ delay: index * 0.05 }}
-               className={`rounded-xl p-3 cursor-pointer shadow-md hover:shadow-lg transition-all flex flex-col items-center justify-center text-center bg-white`}
+               className={`rounded-xl p-3 cursor-pointer shadow-sm hover:shadow-md transition-all flex flex-col items-center justify-center text-center bg-white`}
              >
                <div className="mb-1 text-indigo-600">{item.icon}</div>
                <span className="text-xs text-gray-700">{item.label}</span>
@@ -1227,7 +1528,7 @@ console.log("[DashboardPage] isPunchedIn:", isPunchedIn);
 
        {/* Upcoming Events */}
        <div className="px-4">
-         <div className={`rounded-2xl shadow-lg p-4 bg-white`}>
+         <div className={`${getPageCardStyle(theme)} p-4`}>
            <h3 className="text-lg font-semibold mb-4 text-gray-800">{t("upcomingEvents")}</h3>
            <div className="space-y-3">
              <div className="flex items-center gap-3 p-3 bg-amber-50 rounded-xl">

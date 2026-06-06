@@ -2,6 +2,11 @@ import { useState, ReactNode } from "react";
 import { motion } from "framer-motion";
 import { useLanguage } from "../../i18n/LanguageContext";
 import { useTheme } from "../../store/ThemeContext";
+import {
+  EMPLOYEE_PAGE_CONTAINER,
+  getPageCardStyle,
+  getListItemCardClass,
+} from "../../utils/pageCardStyles";
 
 // Report types
 interface Report {
@@ -99,7 +104,7 @@ const ReportsPage = () => {
   ];
 
   return (
-    <div className="p-4 space-y-6">
+    <div className={EMPLOYEE_PAGE_CONTAINER}>
       {/* Header */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
@@ -115,7 +120,7 @@ const ReportsPage = () => {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.1 }}
-              className={`${stat.color} rounded-2xl p-4 text-center`}
+              className={`${stat.color} rounded-2xl p-4 text-center shadow-sm`}
             >
               <p className={`text-xl font-bold ${stat.textColor}`}>{stat.value}</p>
               <p className="text-xs text-gray-500 mt-1">{stat.label}</p>
@@ -150,7 +155,7 @@ const ReportsPage = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: index * 0.1 }}
-            className={`shadow-lg p-4 hover:shadow-xl transition-shadow cursor-pointer ${theme === 'neon-green' ? 'neon-card' : 'bg-white rounded-2xl'}`}
+            className={getListItemCardClass(theme)}
           >
             <div className="flex items-start gap-4">
               <div className="h-14 w-14 rounded-xl bg-gradient-to-br from-indigo-100 to-purple-100 flex items-center justify-center text-2xl">
@@ -170,7 +175,7 @@ const ReportsPage = () => {
       </div>
 
       {filteredReports.length === 0 && (
-        <div className="bg-white rounded-2xl p-8 text-center text-gray-500">
+        <div className={`${getPageCardStyle(theme)} p-8 text-center text-gray-500`}>
           <svg className="w-16 h-16 mx-auto text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
           <p className="mt-2">{t("noReportsAvailable")}</p>
         </div>

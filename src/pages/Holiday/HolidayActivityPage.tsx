@@ -3,6 +3,11 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useLanguage } from "../../i18n/LanguageContext";
 import { useTheme } from "../../store/ThemeContext";
 import { getHolidayLists, getHolidayListDetails, HolidayItem, HolidayListSummary } from "../../services/holiday.service";
+import {
+  EMPLOYEE_PAGE_CONTAINER,
+  getPageCardStyle,
+  getListItemCardClass,
+} from "../../utils/pageCardStyles";
 
 // ─────────────────────────────────────────────
 //   TYPES
@@ -62,7 +67,7 @@ const SummaryCardSkeleton = () => (
 );
 
 const HolidayCardSkeleton = () => (
-  <div className="shadow-lg p-4 rounded-2xl animate-pulse">
+  <div className="bg-white shadow-sm border border-gray-100 p-4 rounded-2xl animate-pulse">
     <div className="flex items-start gap-3">
       <div className="h-14 w-14 bg-gray-200 rounded-xl flex-shrink-0" />
       <div className="flex-1 space-y-2">
@@ -246,7 +251,7 @@ const HolidayActivityPage = () => {
   // ─────────────────────────────────────────────
 
   return (
-    <div className="p-4 space-y-6 overflow-x-hidden">
+    <div className={`${EMPLOYEE_PAGE_CONTAINER} overflow-x-hidden`}>
 
       {/* ════════════════════════════════
           HEADER
@@ -265,7 +270,7 @@ const HolidayActivityPage = () => {
         <button
           type="button"
           onClick={() => setDropdownOpen(o => !o)}
-          className="w-full shadow-lg p-4 flex items-center justify-between bg-white rounded-2xl"
+          className={`w-full ${getPageCardStyle(theme)} p-4 flex items-center justify-between`}
         >
           <div className="flex items-center gap-3">
             <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -329,7 +334,7 @@ const HolidayActivityPage = () => {
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0 }}
-              className="bg-indigo-50 rounded-2xl p-4 text-center"
+              className="bg-indigo-50 rounded-2xl p-4 text-center shadow-sm"
             >
               <p className="text-xl font-bold text-indigo-600">{stats.total}</p>
               <p className="text-[10px] text-gray-500 mt-1">{t("totalHolidays") || "Total Holidays"}</p>
@@ -338,7 +343,7 @@ const HolidayActivityPage = () => {
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.06 }}
-              className="bg-orange-50 rounded-2xl p-4 text-center"
+              className="bg-orange-50 rounded-2xl p-4 text-center shadow-sm"
             >
               <p className="text-xl font-bold text-orange-600">{stats.weeklyOff || "—"}</p>
               <p className="text-[10px] text-gray-500 mt-1">{t("weeklyOff") || "Weekly Off"}</p>
@@ -361,7 +366,7 @@ const HolidayActivityPage = () => {
           </div>
         ) : holidays.length === 0 ? (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-            className="bg-white rounded-2xl shadow-lg p-10 text-center"
+            className={`${getPageCardStyle(theme)} p-10 text-center`}
           >
             <svg className="w-12 h-12 mx-auto mb-3 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
@@ -403,7 +408,7 @@ const HolidayActivityPage = () => {
                     initial={{ opacity: 0, y: 12 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: idx * 0.04 }}
-                    className={`shadow-lg p-4 rounded-2xl ${isPast ? "opacity-55" : ""}`}
+                    className={`${getListItemCardClass(theme)} ${isPast ? "opacity-55" : ""}`}
                   >
                     <div className="flex items-start gap-3">
                       {/* Date badge */}

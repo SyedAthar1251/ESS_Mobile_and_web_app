@@ -2,6 +2,10 @@ import { useState } from "react";
 import { useLanguage } from "../../i18n/LanguageContext";
 import { useTheme } from "../../store/ThemeContext";
 import ThemeSelector from "../../components/ThemeSelector";
+import {
+  EMPLOYEE_PAGE_CONTAINER,
+  getPageCardStyle,
+} from "../../utils/pageCardStyles";
 
 // Learn More content data
 const learnMoreContent = {
@@ -65,7 +69,7 @@ const SettingsPage = () => {
   const isRTL = language === "ar";
 
   return (
-    <div className="p-4 space-y-6">
+    <div className={EMPLOYEE_PAGE_CONTAINER}>
       {/* Header */}
       <div className="space-y-4">
         <h1 className="text-xl font-bold" style={{ color: themeColors.text }}>
@@ -78,16 +82,16 @@ const SettingsPage = () => {
 
       {/* Theme Section */}
       <div 
-        className={`rounded-2xl p-5 shadow-lg ${theme === 'neon-green' ? 'neon-card' : 'bg-white'}`}
-        style={theme !== 'neon-green' ? { backgroundColor: themeColors.backgroundSecondary, borderColor: themeColors.border, borderWidth: 1 } : {}}
+        className={`${getPageCardStyle(theme)} p-5`}
+        style={theme !== 'neon-green' ? { backgroundColor: themeColors.backgroundSecondary } : {}}
       >
         <ThemeSelector />
       </div>
 
       {/* Contact Us Section */}
       <div 
-        className={`rounded-2xl p-5 shadow-lg ${theme === 'neon-green' ? 'neon-card' : 'bg-white'}`}
-        style={theme !== 'neon-green' ? { backgroundColor: themeColors.backgroundSecondary, borderColor: themeColors.border, borderWidth: 1 } : {}}
+        className={`${getPageCardStyle(theme)} p-5`}
+        style={theme !== 'neon-green' ? { backgroundColor: themeColors.backgroundSecondary } : {}}
       >
         <h2 className="text-lg font-semibold mb-4" style={{ color: themeColors.text }}>
           {isRTL ? "اتصل بنا" : "Contact Us"}
@@ -128,8 +132,8 @@ const SettingsPage = () => {
 
       {/* Learn More Section */}
       <div 
-        className={`rounded-2xl p-5 shadow-lg ${theme === 'neon-green' ? 'neon-card' : 'bg-white'}`}
-        style={theme !== 'neon-green' ? { backgroundColor: themeColors.backgroundSecondary, borderColor: themeColors.border, borderWidth: 1 } : {}}
+        className={`${getPageCardStyle(theme)} p-5`}
+        style={theme !== 'neon-green' ? { backgroundColor: themeColors.backgroundSecondary } : {}}
       >
         <h2 className="text-lg font-semibold mb-4" style={{ color: themeColors.text }}>
           {isRTL ? "اعرف المزيد" : "Learn More"}

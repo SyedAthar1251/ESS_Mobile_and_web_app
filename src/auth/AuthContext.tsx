@@ -1,5 +1,8 @@
 import { createContext, useEffect, useState, useCallback } from "react";
 import { LoginCredentials, LoginResponse, login as loginApi, logout as logoutApi } from "../services/auth.service";
+import { getUserRoles } from "../services/userRole.service";
+import { getEmployeeProfile, EmployeeProfile } from "../services/employee.service";
+import { useNotificationStore } from "../store/notificationStore";
 
 type AuthContextType = {
   isAuthenticated: boolean;
@@ -15,7 +18,9 @@ type AuthContextType = {
     apiKey?: string;
     apiSecret?: string;
     userType?: string;
+    roles?: string[];
   } | null;
+  employee: EmployeeProfile | null;
 };
 
 export const AuthContext = createContext<AuthContextType | null>(null);
@@ -32,7 +37,24 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     apiKey?: string;
     apiSecret?: string;
     userType?: string;
+    roles?: string[];
   } | null>(null);
+
+  const [employee, setEmployee] = useState<EmployeeProfile | null>(() => {
+    const saved = localStorage.getItem("ess_employee");
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  });
+
+  const fetchNotifications = useNotificationStore((s) => s.fetchNotifications);
+  const startPolling = useNotificationStore((s) => s.startPolling);
+  const clearAll = useNotificationStore((s) => s.clearAll);
 
   // Check for existing session on mount
   useEffect(() => {
@@ -44,11 +66,43 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       console.log("[AuthContext] Found existing session for:", userData.userId);
       setUser(userData);
       setIsAuthenticated(true);
+      // Try to refresh roles if not present
+      if (!userData.roles || userData.roles.length === 0) {
+        getUserRoles().then((roles) => {
+          if (roles.length > 0) {
+            const updatedUser = { ...userData, roles };
+            localStorage.setItem("ess_user", JSON.stringify(updatedUser));
+            setUser(updatedUser);
+            console.log("[AuthContext] Refreshed user roles:", roles);
+          }
+        }).catch(() => {});
+      }
+      // Refresh employee data if not already in memory
+      if (!employee && userData.employeeId) {
+        fetchAndStoreEmployee(userData.employeeId);
+      }
+      // Restore notification polling for existing session
+      startPolling();
+      fetchNotifications();
     } else {
       console.log("[AuthContext] No existing session found");
     }
     
     setLoading(false);
+  }, []);
+
+  const fetchAndStoreEmployee = useCallback(async (employeeId: string) => {
+    if (!employeeId) return;
+    try {
+      const profile = await getEmployeeProfile(employeeId);
+      if (profile) {
+        setEmployee(profile);
+        localStorage.setItem("ess_employee", JSON.stringify(profile));
+        console.log("[AuthContext] Employee data loaded:", profile.employeeName);
+      }
+    } catch (err) {
+      console.log("[AuthContext] Employee fetch failed:", err);
+    }
   }, []);
 
   const login = useCallback(async (credentials: LoginCredentials) => {
@@ -80,6 +134,28 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setUser(userData);
         setIsAuthenticated(true);
         console.log("[AuthContext] Login successful for user:", userData.userId);
+
+        // Fetch user roles for HR dashboard access
+        try {
+          const roles = await getUserRoles();
+          if (roles.length > 0) {
+            const updatedUser = { ...userData, roles };
+            localStorage.setItem("ess_user", JSON.stringify(updatedUser));
+            setUser(updatedUser);
+            console.log("[AuthContext] Roles fetched:", roles);
+          }
+        } catch (roleErr) {
+          console.log("[AuthContext] Role fetch failed, continuing without roles:", roleErr);
+        }
+
+        // Fetch employee profile
+        if (userData.employeeId) {
+          await fetchAndStoreEmployee(userData.employeeId);
+        }
+
+        // Fetch notifications and start polling
+        await fetchNotifications();
+        startPolling();
       } else {
         throw new Error("Invalid response from server");
       }
@@ -110,10 +186,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     // Clear local storage
     localStorage.removeItem("ess_user");
     localStorage.removeItem("ess_logged_in");
+    localStorage.removeItem("ess_employee");
 
     setUser(null);
+    setEmployee(null);
     setIsAuthenticated(false);
     setError(null);
+
+    // Clear notifications and stop polling
+    clearAll();
     console.log("[AuthContext] Logout complete");
   }, []);
 
@@ -126,7 +207,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         logout, 
         loading: true,
         error: null,
-        user: null 
+        user: null,
+        employee: null
       }}>
         {children}
       </AuthContext.Provider>
@@ -140,7 +222,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       logout, 
       loading: false,
       error,
-      user
+      user,
+      employee
     }}>
       {children}
     </AuthContext.Provider>

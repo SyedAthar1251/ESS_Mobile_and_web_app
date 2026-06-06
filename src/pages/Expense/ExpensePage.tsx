@@ -10,6 +10,11 @@ import {
   ExpenseClaim,
 } from "../../services/expense.service";
 import ExpenseForm from "./ExpenseForm";
+import {
+  EMPLOYEE_PAGE_CONTAINER,
+  getListItemCardClass,
+  getPageCardStyle,
+} from "../../utils/pageCardStyles";
 
 // ── Skeleton Loaders (styled like LeavePage) ────────────────────────────────
 const StatCardSkeleton = () => (
@@ -178,7 +183,7 @@ const ExpensePage = () => {
   );
 
   return (
-    <div className="p-4 space-y-6">
+    <div className={EMPLOYEE_PAGE_CONTAINER}>
       {/* ── Header Row (exactly like Leave) ── */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
@@ -207,7 +212,7 @@ const ExpensePage = () => {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0 }}
-              className="bg-indigo-50 rounded-2xl p-4 text-center"
+              className="bg-indigo-50 rounded-2xl p-4 text-center shadow-sm"
             >
               <p className="text-xl font-bold text-indigo-600 flex items-center justify-center gap-1">
                 <RiyalIcon size="5" />
@@ -221,7 +226,7 @@ const ExpensePage = () => {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.05 }}
-              className="bg-orange-50 rounded-2xl p-4 text-center"
+              className="bg-orange-50 rounded-2xl p-4 text-center shadow-sm"
             >
               <p className="text-xl font-bold text-orange-600 flex items-center justify-center gap-1">
                 <RiyalIcon size="5" />
@@ -235,7 +240,7 @@ const ExpensePage = () => {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 }}
-              className="bg-green-50 rounded-2xl p-4 text-center"
+              className="bg-green-50 rounded-2xl p-4 text-center shadow-sm"
             >
               <p className="text-xl font-bold text-green-600 flex items-center justify-center gap-1">
                 <RiyalIcon size="5" />
@@ -249,7 +254,7 @@ const ExpensePage = () => {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.15 }}
-              className="bg-red-50 rounded-2xl p-4 text-center"
+              className="bg-red-50 rounded-2xl p-4 text-center shadow-sm"
             >
               <p className="text-xl font-bold text-red-600 flex items-center justify-center gap-1">
                 <RiyalIcon size="5" />
@@ -262,26 +267,27 @@ const ExpensePage = () => {
       </div>
 
       {/* ── Expense List - styled exactly like LeavePage requests list ── */}
-      <div className={`shadow-lg ${theme === "neon-green" ? "neon-card" : "bg-white rounded-2xl"}`}>
-        <div className="p-4 space-y-4">
-          {expenseGroups.length === 0 ? (
-            <p className="text-sm text-gray-400 text-center py-4">No expense claims found</p>
-          ) : (
-            expenseGroups.map((group) => (
-              <div key={group.month_year}>
-                <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2">
-                  {group.month_year}
-                </h3>
-                <div className="space-y-2">
-                  {group.expenses.map((expense, idx) => (
-                    <motion.div
-                      key={expense.name || idx}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: idx * 0.03 }}
-                      onClick={() => setSelectedExpense(expense)}
-                      className="p-3 rounded-xl cursor-pointer transition-colors hover:bg-indigo-50 border border-gray-100"
-                    >
+      <div className="space-y-4">
+        {expenseGroups.length === 0 ? (
+          <div className={`${getPageCardStyle(theme)} p-8 text-center text-gray-500`}>
+            <p className="text-sm">No expense claims found</p>
+          </div>
+        ) : (
+          expenseGroups.map((group) => (
+            <div key={group.month_year}>
+              <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
+                {group.month_year}
+              </h3>
+              <div className="space-y-3">
+                {group.expenses.map((expense, idx) => (
+                  <motion.div
+                    key={expense.name || idx}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: idx * 0.03 }}
+                    onClick={() => setSelectedExpense(expense)}
+                    className={getListItemCardClass(theme)}
+                  >
                       <div className="flex items-start justify-between mb-1">
                         <div className="flex items-center gap-2">
                           <span className="text-xl">{getCategoryIcon(expense.expense_type)}</span>
@@ -301,13 +307,12 @@ const ExpensePage = () => {
                           {expense.amount?.toLocaleString() || "0"}
                         </span>
                       </div>
-                    </motion.div>
-                  ))}
-                </div>
+                  </motion.div>
+                ))}
               </div>
-            ))
-          )}
-        </div>
+            </div>
+          ))
+        )}
       </div>
 
 

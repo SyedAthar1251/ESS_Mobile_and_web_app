@@ -4,6 +4,10 @@ import { useNavigate } from "react-router-dom";
 import { useLanguage } from "../../i18n/LanguageContext";
 import { useTheme } from "../../store/ThemeContext";
 import { getLeaveApplicationList, createLeaveApplication, type CreateLeaveApplicationRequest } from "../../services/leave.service";
+import {
+  EMPLOYEE_PAGE_CONTAINER,
+  getPageCardStyle,
+} from "../../utils/pageCardStyles";
 
 const ApplyLeavePage = () => {
   const { t } = useLanguage();
@@ -222,7 +226,7 @@ const ApplyLeavePage = () => {
 
   // ── Render ──
   return (
-    <div className="p-4 space-y-6">
+    <div className={EMPLOYEE_PAGE_CONTAINER}>
 
       {/* ── Header ── */}
       <div className="flex items-center gap-2">
@@ -241,11 +245,7 @@ const ApplyLeavePage = () => {
       </div>
 
       {/* ── Form Card ── */}
-      <div
-        className={`shadow-lg p-4 space-y-4 ${
-          theme === "neon-green" ? "neon-card" : "bg-white rounded-2xl"
-        }`}
-      >
+      <div className={`${getPageCardStyle(theme)} p-4 space-y-4`}>
         <h2 className="font-semibold text-gray-800">{t("newLeaveApplication")}</h2>
 
         {loading ? (

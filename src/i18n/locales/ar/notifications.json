@@ -21,5 +21,10 @@
   "rememberToCheckin": "يرجى تسجيل الحضور اليوم قبل الساعة",
   "expenseClaimRejected": "تم رفض مطالبة المصروفات الخاصة بك لـ",
   "error": "خطأ",
-  "retry": "إعادة المحاولة"
+  "retry": "إعادة المحاولة",
+  "refresh": "تحديث",
+  "viewAllNotifications": "عرض جميع الإشعارات",
+  "pullToRefresh": "اسحب للتحديث",
+  "releaseToRefresh": "أفلت للتحديث",
+  "refreshing": "جاري التحديث..."
 }

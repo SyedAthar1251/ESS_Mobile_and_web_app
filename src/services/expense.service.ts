@@ -50,9 +50,21 @@ export const getUserCredentials = (): { companyUrl: string; apiKey: string; apiS
 };
 
 export const getAuthHeader = (apiKey: string, apiSecret: string) => {
-  // Frappe expects: "token api_key:api_secret"
   return {
     Authorization: `token ${apiKey}:${apiSecret}`,
+  };
+};
+
+const getMobileError = (error: any): { message: string; status: number } => {
+  if (error?.response?.status) {
+    return {
+      message: error.response?.data?.exception || error.response?.data?.message || error.message || "Request failed",
+      status: error.response.status,
+    };
+  }
+  return {
+    message: error?.message || "Network error",
+    status: error?.status || 0,
   };
 };
 
@@ -91,7 +103,8 @@ export const getExpenseType = async (): Promise<ExpenseType[]> => {
     }));
   } catch (error: any) {
     console.error("[ExpenseService] Failed to fetch expense types from Frappe:", error);
-    throw new Error(error.response?.data?.exception || error.message || "Failed to fetch expense types");
+    const { message } = getMobileError(error);
+    throw new Error(message || "Failed to fetch expense types");
   }
 };
 
@@ -216,6 +229,7 @@ export const getExpenseList = async (): Promise<ExpenseGroupedList[]> => {
     return grouped;
   } catch (error: any) {
     console.error("[ExpenseService] Failed to fetch expense claims from Frappe:", error);
-    throw new Error(error.response?.data?.exception || error.message || "Failed to fetch expense claims");
+    const { message } = getMobileError(error);
+    throw new Error(message || "Failed to fetch expense claims");
   }
 };

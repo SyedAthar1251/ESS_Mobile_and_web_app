@@ -170,7 +170,22 @@ export const getCompanyDetails = async (): Promise<CompanyDetails> => {
 export const getSalarySlips = async (): Promise<SalarySlipSummary[]> => {
   const { companyUrl, apiKey, apiSecret } = getUserCredentials();
   const cleanUrl = companyUrl.replace(/\/$/, "");
-  const apiUrl = `${cleanUrl}/api/resource/Salary%20Slip?fields=["name","employee","employee_name","start_date","end_date","gross_pay","net_pay","status"]`;
+
+  const savedUser = localStorage.getItem("ess_user");
+  const userData = savedUser ? JSON.parse(savedUser) : {};
+  const employeeId = (userData as any)?.employeeId || (userData as any)?.employee || "";
+
+  console.log("[Salary Security] Logged-in user:", userData);
+  console.log("[Salary Security] Employee ID:", employeeId);
+
+  if (!employeeId) {
+    console.error("[Salary Security] No employee ID found, returning empty list");
+    return [];
+  }
+
+  const apiUrl = `${cleanUrl}/api/resource/Salary%20Slip?fields=["name","employee","employee_name","start_date","end_date","gross_pay","net_pay","status"]&filters=[["employee","=","${employeeId}"]]`;
+
+  console.log("[Salary Security] API URL:", apiUrl);
 
   try {
     const response = await api.get(apiUrl, {
@@ -184,7 +199,25 @@ export const getSalarySlips = async (): Promise<SalarySlipSummary[]> => {
       ? (response.data as any).data
       : [];
 
-    return list as SalarySlipSummary[];
+    console.log("[Salary Security] Salary slips received:", list.length);
+
+    const filteredList = list.filter(
+      (slip: any) => slip.employee === employeeId
+    );
+
+    console.log("[Salary Security] Salary slips after filtering:", filteredList.length);
+
+    filteredList.forEach((slip: any) => {
+      if (slip.employee !== employeeId) {
+        console.error(
+          "[Salary Security Warning]",
+          "Removed salary slip belonging to another employee",
+          slip
+        );
+      }
+    });
+
+    return filteredList as SalarySlipSummary[];
   } catch (error: any) {
     console.error("[Salary Service Error]", error);
     throw error;
@@ -196,6 +229,12 @@ export const getSalarySlipDetails = async (name: string): Promise<SalarySlipDeta
   const cleanUrl = companyUrl.replace(/\/$/, "");
   const apiUrl = `${cleanUrl}/api/resource/Salary%20Slip/${encodeURIComponent(name)}`;
 
+  const savedUser = localStorage.getItem("ess_user");
+  const userData = savedUser ? JSON.parse(savedUser) : {};
+  const employeeId = (userData as any)?.employeeId || (userData as any)?.employee || "";
+
+  console.log("[Salary Security] getSalarySlipDetails - Employee ID:", employeeId);
+
   const response = await api.get(apiUrl, {
     headers: {
       "Content-Type": "application/json",
@@ -203,7 +242,18 @@ export const getSalarySlipDetails = async (name: string): Promise<SalarySlipDeta
     },
   });
 
-  return (response.data as any).data;
+  const slip = (response.data as any).data;
+
+  if (employeeId && slip.employee !== employeeId) {
+    console.error("[Salary Security Warning] User attempted to access another employee's salary slip", {
+      requestedSlip: name,
+      ownerEmployee: slip.employee,
+      currentEmployee: employeeId,
+    });
+    throw new Error("Access denied: This salary slip does not belong to you");
+  }
+
+  return slip;
 };
 
 export const getSalarySlipPrintFormat = async (

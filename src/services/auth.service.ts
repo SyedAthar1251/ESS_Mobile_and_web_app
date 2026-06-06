@@ -1,6 +1,19 @@
 import { createContext, useEffect, useState, useCallback } from "react";
 import api from "./api";
 
+const getMobileError = (error: any): { message: string; status: number } => {
+  if (error?.response?.status) {
+    return {
+      message: error.response?.data?.exception || error.response?.data?.message || error.message || "Request failed",
+      status: error.response.status,
+    };
+  }
+  return {
+    message: error?.message || "Network error",
+    status: error?.status || 0,
+  };
+};
+
 // Login credentials type
 export interface LoginCredentials {
   companyUrl: string;
@@ -77,22 +90,18 @@ export const login = async (credentials: LoginCredentials): Promise<LoginRespons
     console.log("[AuthService] Login successful:", response.data);
     return response.data;
   } catch (error: any) {
+    const { message, status } = getMobileError(error);
     console.log("[AuthService] Login error details:", {
-      status: error.response?.status,
-      message: error.response?.data?.exception || error.response?.data?.error || error.message,
-      fullError: error.response?.data,
+      status,
+      message,
     });
     
-    if (error.response?.data?.exception) {
-      throw new Error(error.response.data.exception);
-    } else if (error.response?.data?.error) {
-      throw new Error(error.response.data.error);
-    } else if (error.response?.status === 401) {
+    if (status === 401) {
       throw new Error("Invalid credentials. Please check your user ID and password.");
     } else if (error.code === "ECONNABORTED") {
       throw new Error("Request timed out. Please try again.");
     } else {
-      throw new Error("Login failed. Please try again.");
+      throw new Error(message || "Login failed. Please try again.");
     }
   }
 };
@@ -175,22 +184,18 @@ export const changePassword = async (credentials: ChangePasswordCredentials): Pr
     console.log("[AuthService] Change password successful:", response.data);
     return response.data;
   } catch (error: any) {
+    const { message, status } = getMobileError(error);
     console.log("[AuthService] Change password error details:", {
-      status: error.response?.status,
-      message: error.response?.data?.exception || error.response?.data?.error || error.message,
-      fullError: error.response?.data,
+      status,
+      message,
     });
     
-    if (error.response?.data?.exception) {
-      throw new Error(error.response.data.exception);
-    } else if (error.response?.data?.error) {
-      throw new Error(error.response.data.error);
-    } else if (error.response?.status === 401) {
+    if (status === 401) {
       throw new Error("Invalid current password. Please check and try again.");
     } else if (error.code === "ECONNABORTED") {
       throw new Error("Request timed out. Please try again.");
     } else {
-      throw new Error("Failed to change password. Please try again.");
+      throw new Error(message || "Failed to change password. Please try again.");
     }
   }
 };

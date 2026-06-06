@@ -76,5 +76,21 @@
   "relationshipTypeRequired": "نوع العلاقة مطلوب",
   "loadError": "فشل تحميل بيانات الإجازات",
   "appliedOn": "تم التقديم في",
-  "noFileChosen": "لم يتم اختيار ملف"
+  "noFileChosen": "لم يتم اختيار ملف",
+  "expired": "منتهي",
+  "approvalTimeline": "الجدول الزمني للموافقة",
+  "inProgress": "قيد المعالجة",
+  "waiting": "في الانتظار",
+  "completed": "مكتمل",
+  "waitingFor": "في انتظار",
+  "downloadTimeline": "تحميل الجدول الزمني",
+  "biometricVerification": "التحقق البيومتري",
+  "biometricVerificationFailed": "فشل التحقق البيومتري",
+  "calendarDays": "أيام التقويم",
+  "publicHolidays": "العطلات الرسمية",
+  "weekendDays": "أيام نهاية الأسبوع",
+  "daysDeducted": "الأيام المخصومة",
+  "status": "الحالة",
+  "createdBy": "أنشأ بواسطة",
+  "leaveApprover": "معتمد الإجازة"
 }

@@ -72,19 +72,6 @@ const api = {
           body,
         });
 
-        if (!response.ok) {
-          let errorData: any;
-          try {
-            errorData = await response.json();
-          } catch {
-            errorData = { message: response.statusText };
-          }
-          console.error("[API] HTTP Error:", response.status, errorData);
-
-          const errorMessage = errorData?.exception || errorData?.error || errorData?.message || `HTTP Error: ${response.status}`;
-          throw new Error(errorMessage);
-        }
-
         let responseData: T;
         if (options?.responseType === 'blob') {
           responseData = await response.blob() as unknown as T;
@@ -95,11 +82,12 @@ const api = {
         }
         return { data: responseData, status: response.status };
       } catch (error: any) {
-        if (error instanceof Error && error.message.includes('HTTP Error')) {
-          throw error;
-        }
         console.error("[API] POST Error:", error);
-        throw new Error(`Network error: ${error.message}`);
+        const errorMessage = error?.message || "Network error";
+        const err: any = new Error(errorMessage);
+        err.status = error?.status || 0;
+        err.response = { status: error?.status || 0, data: error };
+        throw err;
       }
     } else {
       const result = await axiosApi.post(url, data, options);

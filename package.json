@@ -26,6 +26,7 @@
     "@capacitor/ios": "^5.7.4",
     "@capacitor/share": "^5.0.8",
     "@capacitor/splash-screen": "^5.0.7",
+    "@capgo/capacitor-native-biometric": "^5.1.1",
     "axios": "^1.13.5",
     "framer-motion": "^12.34.0",
     "html2canvas": "^1.4.1",

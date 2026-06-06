@@ -169,7 +169,7 @@ const LoginPage = () => {
         console.log("[LoginPage] Admin user detected, redirecting to admin panel...");
         navigate("/admin", { replace: true });
       } else {
-        console.log("[LoginPage] Employee user, redirecting to dashboard...");
+        console.log("[LoginPage] User detected, redirecting to dashboard...");
         navigate("/dashboard", { replace: true });
       }
     } catch (err: any) {
@@ -257,10 +257,10 @@ const LoginPage = () => {
     }
   };
 
-  const handleCreateAccount = () => {
-    // Open in mobile browser
-    window.open("https://alphaxerp.com/", "_system");
-  };
+  // const handleCreateAccount = () => {
+  //   // Open in mobile browser
+  //   window.open("https://alphaxerp.com/", "_system");
+  // };
 
   return (
     <div 

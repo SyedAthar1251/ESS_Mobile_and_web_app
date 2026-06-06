@@ -8,8 +8,8 @@ const SplashPage = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Check if user was previously logged in
     const wasLoggedIn = localStorage.getItem('ess_logged_in') === 'true';
+    const target = wasLoggedIn ? "/dashboard" : "/login";
     
     // Hide native splash screen when this component loads
     const hideSplash = async () => {
@@ -23,7 +23,7 @@ const SplashPage = () => {
 
     // Wait a bit then navigate
     const timer = setTimeout(() => {
-      navigate(wasLoggedIn ? "/dashboard" : "/login", { replace: true });
+      navigate(target, { replace: true });
     }, 1200);
 
     return () => clearTimeout(timer);

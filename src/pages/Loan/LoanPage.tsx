@@ -3,6 +3,11 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useLanguage } from "../../i18n/LanguageContext";
 import { useTheme } from "../../store/ThemeContext";
 import { useAuth } from "../../auth/useAuth";
+import {
+  EMPLOYEE_PAGE_CONTAINER,
+  getListItemCardClass,
+  getPageCardStyle,
+} from "../../utils/pageCardStyles";
 
 // Loan types
 interface LoanRequest {
@@ -156,7 +161,7 @@ const LoanPage = () => {
 
   if (showDetail && selectedLoan) {
     return (
-      <div className="p-4 space-y-6">
+      <div className={EMPLOYEE_PAGE_CONTAINER}>
         {/* Header */}
         <div className="flex items-center gap-4">
           <button
@@ -178,7 +183,7 @@ const LoanPage = () => {
         </div>
 
         {/* Loan Details Card */}
-        <div className="bg-white rounded-2xl shadow-lg p-6 space-y-4">
+        <div className={`${getPageCardStyle(theme)} p-6 space-y-4`}>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <p className="text-sm text-gray-500">{t("loanType")}</p>
@@ -224,7 +229,7 @@ const LoanPage = () => {
 
         {/* Repayment Schedule - Only show for Active loans */}
         {selectedLoan.status === "Active" && (
-          <div className="bg-white rounded-2xl shadow-lg p-6">
+          <div className={`${getPageCardStyle(theme)} p-6`}>
             <h3 className="font-semibold text-gray-800 mb-4">{t("repaymentSchedule")}</h3>
             <div className="space-y-2">
               {repaymentSchedule.map((schedule, index) => (
@@ -254,7 +259,7 @@ const LoanPage = () => {
 
         {/* Remarks */}
         {selectedLoan.remarks && (
-          <div className="bg-white rounded-2xl shadow-lg p-6">
+          <div className={`${getPageCardStyle(theme)} p-6`}>
             <h3 className="font-semibold text-gray-800 mb-2">{t("remarks")}</h3>
             <p className="text-gray-600">{selectedLoan.remarks}</p>
           </div>
@@ -264,7 +269,7 @@ const LoanPage = () => {
   }
 
   return (
-    <div className="p-4 space-y-6">
+    <div className={EMPLOYEE_PAGE_CONTAINER}>
       {/* Header */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
@@ -286,7 +291,7 @@ const LoanPage = () => {
       <div className="relative">
         <button
           onClick={() => setDropdownOpen(!dropdownOpen)}
-          className={`w-full shadow-lg p-4 flex items-center justify-between ${theme === 'neon-green' ? 'neon-card' : 'bg-white rounded-2xl'}`}
+          className={`w-full ${getPageCardStyle(theme)} p-4 flex items-center justify-between`}
         >
           <div className="flex items-center gap-3">
             <span className="text-2xl">{currentOption?.icon}</span>
@@ -340,7 +345,7 @@ const LoanPage = () => {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-white rounded-2xl shadow-lg p-6 space-y-4"
+          className={`${getPageCardStyle(theme)} p-6 space-y-4`}
         >
           <h2 className="text-lg font-bold text-gray-800">{t("applyLoan")}</h2>
           
@@ -468,7 +473,7 @@ const LoanPage = () => {
                 setSelectedLoan(loan);
                 setShowDetail(true);
               }}
-              className="bg-white rounded-2xl shadow-lg p-4 cursor-pointer hover:shadow-xl transition-shadow"
+              className={getListItemCardClass(theme)}
             >
               <div className="flex items-start justify-between mb-2">
                 <div>
