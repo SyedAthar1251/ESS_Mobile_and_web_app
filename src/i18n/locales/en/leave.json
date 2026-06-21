@@ -92,5 +92,12 @@
   "daysDeducted": "Days deducted",
   "status": "Status",
   "createdBy": "Created By",
-  "leaveApprover": "Leave Approver"
+  "leaveApprover": "Leave Approver",
+  "leaveAlreadyExists": "Leave Already Exists",
+  "leaveAlreadyAppliedMessage": "You already have a leave application for these dates.",
+  "sickLeaveSequenceError": "Please apply for Full Pay Sick Leave first before applying for Partial Pay",
+  "sickLeaveSequenceUnpaidError": "Please exhaust Full Pay and Partial Pay Sick Leave before applying for Unpaid",
+  "sickLeaveFullPayExhausted": "Full Pay Sick Leave balance is exhausted. Please apply for Partial Pay instead.",
+  "sickLeavePartialPayExhausted": "Partial Pay Sick Leave balance is exhausted. Please apply for Unpaid instead.",
+  "sickLeaveUnpaidExhausted": "Unpaid Sick Leave balance is exhausted."
 }

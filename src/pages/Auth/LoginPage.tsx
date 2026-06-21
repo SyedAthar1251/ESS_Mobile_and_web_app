@@ -1,10 +1,11 @@
-import { useState, useCallback } from "react";
-import { motion } from "framer-motion";
+import { useState, useCallback, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../auth/useAuth";
 import { useLanguage } from "../../i18n/LanguageContext";
 import { useTheme } from "../../store/ThemeContext";
 import LanguageSwitcher from "../../components/LanguageSwitcher";
+import { forgotPassword, ForgotPasswordRequest } from "../../services/auth.service";
 
 // Error type for categorized error handling
 interface ErrorInfo {
@@ -117,6 +118,20 @@ const LoginPage = () => {
     return saved === "true";
   });
   const [localError, setLocalError] = useState<ErrorInfo | null>(null);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [fpCompanyUrl, setFpCompanyUrl] = useState("");
+  const [fpUserIdOrEmail, setFpUserIdOrEmail] = useState("");
+  const [fpLoading, setFpLoading] = useState(false);
+  const [fpError, setFpError] = useState<string | null>(null);
+  const [snackbar, setSnackbar] = useState<{ message: string; type: "success" | "error"; visible: boolean }>(
+    { message: "", type: "success", visible: false }
+  );
+
+  useEffect(() => {
+    if (!snackbar.visible) return;
+    const timer = setTimeout(() => setSnackbar((p) => ({ ...p, visible: false })), 5000);
+    return () => clearTimeout(timer);
+  }, [snackbar.visible]);
 
   // Check if light theme (for white text on certain elements)
   const isLightTheme = theme === "light";
@@ -177,6 +192,36 @@ const LoginPage = () => {
       // Parse and set the error with proper categorization
       const parsedError = parseError(err.message);
       setLocalError(parsedError);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    setFpError(null);
+
+    if (!fpCompanyUrl.trim()) {
+      setFpError(t("errorCompanyUrlRequired") || "Company URL is required");
+      return;
+    }
+    if (!fpUserIdOrEmail.trim()) {
+      setFpError(t("errorUserIdRequired") || "Employee ID / Email is required");
+      return;
+    }
+
+    setFpLoading(true);
+    try {
+      await forgotPassword({ companyUrl: fpCompanyUrl.trim(), email: fpUserIdOrEmail.trim() });
+      setShowForgotPassword(false);
+      setFpCompanyUrl("");
+      setFpUserIdOrEmail("");
+      setSnackbar({
+        message: "Password reset link has been sent to your registered email address.",
+        type: "success",
+        visible: true,
+      });
+    } catch (err: any) {
+      setFpError(err.message || "Failed to send reset link. Please try again.");
+    } finally {
+      setFpLoading(false);
     }
   };
 
@@ -452,7 +497,8 @@ const LoginPage = () => {
                   Remember Me
                 </label>
               </div>
-              <button 
+              <button
+                onClick={() => { setShowForgotPassword(true); setFpCompanyUrl(companyUrl); setFpUserIdOrEmail(""); setFpError(null); }}
                 className="text-sm hover:underline disabled:opacity-100"
                 style={{ color: isLightTheme ? "#ffffff" : themeColors.primary }}
               >
@@ -513,6 +559,108 @@ const LoginPage = () => {
             </div>
           </div>
         )}
+        {/* Forgot Password Modal */}
+        <AnimatePresence>
+          {showForgotPassword && (
+            <>
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 bg-black/50 z-50"
+                onClick={() => setShowForgotPassword(false)}
+              />
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="fixed inset-0 z-50 flex items-center justify-center p-4"
+              >
+                <div className="w-full max-w-sm rounded-2xl p-6 shadow-2xl bg-white">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Forgot Password</h3>
+                  <p className="text-sm text-gray-500 mb-4">Enter your company URL and employee ID or email address to receive a password reset link.</p>
+                  {fpError && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -5 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="bg-red-50 border border-red-200 rounded-xl px-3 py-2 mb-3"
+                    >
+                      <p className="text-sm text-red-600">{fpError}</p>
+                    </motion.div>
+                  )}
+                  <input
+                    type="url"
+                    placeholder={t("companyUrl") || "Company URL"}
+                    value={fpCompanyUrl}
+                    onChange={(e) => { setFpCompanyUrl(e.target.value); setFpError(null); }}
+                    className="w-full mb-3 px-4 py-3 border rounded-xl bg-white text-gray-900 placeholder-gray-500"
+                    disabled={fpLoading}
+                    autoFocus
+                  />
+                  <input
+                    type="text"
+                    placeholder="Employee ID / Email"
+                    value={fpUserIdOrEmail}
+                    onChange={(e) => { setFpUserIdOrEmail(e.target.value); setFpError(null); }}
+                    onKeyDown={(e) => e.key === "Enter" && handleForgotPassword()}
+                    className="w-full mb-4 px-4 py-3 border rounded-xl bg-white text-gray-900 placeholder-gray-500"
+                    disabled={fpLoading}
+                  />
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => setShowForgotPassword(false)}
+                      disabled={fpLoading}
+                      className="flex-1 py-2.5 rounded-xl border border-gray-300 text-gray-700 font-medium text-sm disabled:opacity-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleForgotPassword}
+                      disabled={fpLoading}
+                      className="flex-1 py-2.5 rounded-xl text-white font-medium text-sm disabled:opacity-50 flex items-center justify-center gap-2"
+                      style={{ backgroundColor: themeColors.primary }}
+                    >
+                      {fpLoading ? (
+                        <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                        </svg>
+                      ) : (
+                        "Send Reset Link"
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>
+        {/* Snackbar */}
+        <AnimatePresence>
+          {snackbar.visible && (
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 30 }}
+              className={`fixed bottom-5 left-1/2 -translate-x-1/2 z-[200] rounded-xl px-5 py-3.5 text-sm font-medium shadow-2xl ${
+                snackbar.type === "error" ? "bg-red-600 text-white" : "bg-green-600 text-white"
+              }`}
+            >
+              <span className="inline-flex items-center gap-2">
+                {snackbar.type === "success" ? (
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                ) : (
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                )}
+                {snackbar.message}
+              </span>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </motion.div>
     </div>
   );

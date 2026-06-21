@@ -5,6 +5,9 @@ import SplashPage from "../pages/Splash/SplashPage";
 import LoginPage from "../pages/Auth/LoginPage";
 import DashboardPage from "../pages/Dashboard/DashboardPage";
 import AttendancePage from "../pages/Attendance/AttendancePage";
+import AttendanceRequestListPage from "../pages/Attendance/AttendanceRequestListPage";
+import AttendanceRequestDetailPage from "../pages/Attendance/AttendanceRequestDetailPage";
+import NewAttendanceRequestPage from "../pages/Attendance/NewAttendanceRequestPage";
 import LeavePage from "../pages/Leave/LeavePage";
 import ProfilePage from "../pages/Profile/ProfilePage";
 import ExpensePage from "../pages/Expense/ExpensePage";
@@ -72,6 +75,10 @@ const AppRoutes = () => {
       <Route element={<RouteGuard allowedType="employee" />}>
         <Route path="/dashboard" element={<AuthenticatedLayout><DashboardPage /></AuthenticatedLayout>} />
         <Route path="/attendance" element={<AuthenticatedLayout><AttendancePage /></AuthenticatedLayout>} />
+        <Route path="/attendance/requests" element={<AuthenticatedLayout><AttendanceRequestListPage /></AuthenticatedLayout>} />
+        <Route path="/attendance/requests/:name" element={<AuthenticatedLayout><AttendanceRequestDetailPage /></AuthenticatedLayout>} />
+        <Route path="/attendance/requests/new" element={<AuthenticatedLayout><NewAttendanceRequestPage /></AuthenticatedLayout>} />
+        <Route path="/attendance/requests/edit/:name" element={<AuthenticatedLayout><NewAttendanceRequestPage /></AuthenticatedLayout>} />
         <Route path="/notifications" element={<AuthenticatedLayout><NotificationsPage /></AuthenticatedLayout>} />
         <Route path="/profile" element={<AuthenticatedLayout><ProfilePage /></AuthenticatedLayout>} />
         <Route path="/settings" element={<AuthenticatedLayout><SettingsPage /></AuthenticatedLayout>} />
@@ -81,7 +88,7 @@ const AppRoutes = () => {
         <Route path="/salary" element={<AuthenticatedLayout><SalaryPage /></AuthenticatedLayout>} />
         <Route path="/tasks" element={<AuthenticatedLayout><TaskPage /></AuthenticatedLayout>} />
         <Route path="/documents" element={<AuthenticatedLayout><ComingSoon title="Documents"><DocumentsPage /></ComingSoon></AuthenticatedLayout>} />
-        <Route path="/reports" element={<AuthenticatedLayout><ComingSoon title="Reports"><ReportsPage /></ComingSoon></AuthenticatedLayout>} />
+        <Route path="/reports" element={<AuthenticatedLayout><ReportsPage /></AuthenticatedLayout>} />
         <Route path="/travel" element={<AuthenticatedLayout><TravelPage /></AuthenticatedLayout>} />
         <Route path="/loan" element={<AuthenticatedLayout><ComingSoon title="Loans"><LoanPage /></ComingSoon></AuthenticatedLayout>} />
         <Route path="/magic-nav" element={<AuthenticatedLayout><MagicNavPage /></AuthenticatedLayout>} />

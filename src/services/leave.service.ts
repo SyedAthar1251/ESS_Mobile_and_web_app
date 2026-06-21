@@ -122,7 +122,7 @@ export const getLeaveApprover = async (): Promise<string | null> => {
     const approver = data?.leave_approver;
     return approver && approver.trim().length > 0 ? approver : null;
   } catch (err) {
-    console.error("[LeaveService] Failed to fetch leave_approver:", err);
+
     return null;
   }
 };
@@ -283,8 +283,6 @@ const uploadFrappeFile = async (
        }
      );
 
-     console.log("[UPLOAD RESPONSE]", JSON.stringify(res.data, null, 2));
-
      // Preferred: absolute/relative file URL (Frappe may nest it under .message)
      const fileUrl =
        res.data?.file_url ||
@@ -299,10 +297,9 @@ const uploadFrappeFile = async (
     const fname = res.data?.file_data?.file_name;
     if (fname) return `/private/files/${fname}`;
 
-    console.warn(`[LeaveService] File upload returned no identifiable URL (file: ${file.name})`);
     return null;
   } catch (err: any) {
-    console.error(`[LeaveService] File upload failed (${file.name}):`, extractErrorMessage(err));
+
     return null;
   }
 };
@@ -356,10 +353,8 @@ const uploadLeaveAttachments = async (
 export const getLeaveTypes = async (): Promise<{ data: LeaveTypeResponse[] }> => {
   const { companyUrl, apiKey, apiSecret, employeeId } = getUserCredentials();
 
-  console.log("[LeaveService] Fetching leave types");
-
   if (DUMMY_MODE) {
-    console.log("[LeaveService] DUMMY MODE - Returning fake leave types");
+
     return {
       data: [
         { leave_type: "Casual Leave", closing_balance: 5 },
@@ -372,7 +367,6 @@ export const getLeaveTypes = async (): Promise<{ data: LeaveTypeResponse[] }> =>
 
   const cleanUrl = companyUrl.replace(/\/$/, "");
   const apiUrl = `${cleanUrl}/api/method/employee_self_service.mobile.ess.get_leave_type`;
-  console.log("[LeaveService] Full API URL:", apiUrl);
 
   try {
     const formData = new URLSearchParams();
@@ -387,10 +381,9 @@ export const getLeaveTypes = async (): Promise<{ data: LeaveTypeResponse[] }> =>
       }
     );
 
-    console.log("[LeaveService] Leave types response:", response.data);
     return response.data;
   } catch (error: any) {
-    console.error("[LeaveService] get_leave_type failed:", extractErrorMessage(error));
+
     return { data: [] };
   }
 };
@@ -406,7 +399,7 @@ export const createLeaveApplication = async (
   const { companyUrl, apiKey, apiSecret, employeeId } = getUserCredentials();
 
   if (DUMMY_MODE) {
-    console.log("[LeaveService] DUMMY MODE - Returning fake leave application");
+
     return {
       message: "Leave application submitted successfully",
       data: {
@@ -417,7 +410,6 @@ export const createLeaveApplication = async (
 
   const cleanUrl = companyUrl.replace(/\/$/, "");
   const apiUrl = `${cleanUrl}/api/resource/Leave Application`;
-  console.log("[LeaveService] Full API URL:", apiUrl);
 
   try {
     // Step 1  upload attachment files in parallel (non-blocking for non-file requests)
@@ -457,10 +449,7 @@ export const createLeaveApplication = async (
     if (fileUrls.custom_marriage_proof !== undefined)
       payload.custom_marriage_proof = fileUrls.custom_marriage_proof;
 
-    console.log("[FINAL FILE URL]", fileUrls.custom_approved_leave_form);
-    console.log("[FINAL PAYLOAD]", JSON.stringify(payload, null, 2));
 
-    console.log("[LeaveService] Payload:", payload);
 
     const response = await api.post<CreateLeaveApplicationResponse>(
       apiUrl,
@@ -474,15 +463,13 @@ export const createLeaveApplication = async (
       }
     );
 
-    console.log("[LeaveService] Leave application response:", response.data);
-
     if (!response.data?.data || Array.isArray(response.data.data)) {
       throw new Error(extractErrorMessage(response.data || response));
     }
 
     return response.data;
   } catch (error: any) {
-    console.error("[LeaveService] Failed to create leave application:", extractErrorMessage(error));
+
     if (error.response?.status === 401) {
       throw new Error("Authentication failed. Please login again.");
     }
@@ -498,10 +485,8 @@ export const createLeaveApplication = async (
 export const getLeaveApplicationList = async (): Promise<LeaveApplicationListResponse> => {
   const { companyUrl, apiKey, apiSecret, employeeId } = getUserCredentials();
 
-  console.log("[LeaveService] Fetching leave application list");
-
   if (DUMMY_MODE) {
-    console.log("[LeaveService] DUMMY MODE - Returning fake leave applications");
+
     return {
       message: "leave data getting successfully",
       data: {
@@ -532,7 +517,6 @@ export const getLeaveApplicationList = async (): Promise<LeaveApplicationListRes
   }
 
   const apiUrl = `${companyUrl.replace(/\/$/, "")}/api/method/employee_self_service.mobile.ess.get_leave_application_list`;
-  console.log("[LeaveService] Full API URL:", apiUrl);
 
   try {
     const response = await api.get<LeaveApplicationListResponse>(apiUrl, {
@@ -542,10 +526,9 @@ export const getLeaveApplicationList = async (): Promise<LeaveApplicationListRes
       },
     });
 
-    console.log("[LeaveService] Leave applications response:", response.data);
     return response.data;
   } catch (error: any) {
-    console.error("[LeaveService] Failed to fetch leave applications:", extractErrorMessage(error));
+
     if (error.response?.status === 401) {
       throw new Error("Authentication failed. Please login again.");
     }
@@ -594,7 +577,7 @@ export const getLeaveApplicationDetail = async (
     });
     return response.data?.data || null;
   } catch (error: any) {
-    console.error("[LeaveService] Failed to fetch leave application detail:", error);
+
     return null;
   }
 };
@@ -658,7 +641,133 @@ export const getWorkflowTimeline = async (
     });
     return response.data.message;
   } catch (error: any) {
-    console.error("[LeaveService] Failed to fetch workflow timeline:", error);
+
+    return null;
+  }
+};
+
+// ============================================
+// Leave Calendar Details
+// ============================================
+// GET /api/method/employee_self_service.mobile.ess.get_leave_calendar_details
+
+export interface LeaveCalendarLeaveDetail {
+  name?: string;
+  date?: string;
+  from_date?: string;
+  to_date?: string;
+  leave_type?: string;
+  status?: string;
+  half_day?: number;
+  total_leave_days?: number;
+}
+
+export interface LeaveCalendarPublicHoliday {
+  date: string;
+  description: string;
+}
+
+export interface LeaveCalendarWeeklyOff {
+  date: string;
+  day: string;
+}
+
+export interface LeaveCalendarBridgePolicy {
+  bridge_applies?: boolean;
+  bridge_fires?: boolean;
+  bridge_message?: string;
+  bridge_dates?: string[];
+  previous_leave?: string | null;
+}
+
+export interface LeaveCalendarSickLeaveSlab {
+  slab_type?: string;
+  days?: number;
+  percentage?: number;
+  description?: string;
+  full_pay_allowed?: number;
+  full_pay_used?: number;
+  partial_pay_allowed?: number;
+  partial_pay_used?: number;
+  unpaid_allowed?: number;
+  unpaid_used?: number;
+}
+
+export interface LeaveCalendarResponse {
+  leave_details?: LeaveCalendarLeaveDetail;
+  calendar_days?: number;
+  public_holidays?: LeaveCalendarPublicHoliday[];
+  weekly_offs?: LeaveCalendarWeeklyOff[];
+  effective_leave_days?: number;
+  bridge_policy_data?: LeaveCalendarBridgePolicy;
+  existing_leaves?: LeaveCalendarLeaveDetail[];
+  sick_leave_slab?: LeaveCalendarSickLeaveSlab;
+  from_date?: string;
+  to_date?: string;
+  leave_type?: string;
+  message?: string;
+}
+
+export const getLeaveCalendarDetails = async (
+  leaveApplicationName: string
+): Promise<LeaveCalendarResponse | null> => {
+  const { companyUrl, apiKey, apiSecret } = getUserCredentials();
+
+  const cleanUrl = companyUrl.replace(/\/$/, "");
+  const apiUrl = `${cleanUrl}/api/method/employee_self_service.mobile.ess.get_leave_calendar_details?leave_application=${encodeURIComponent(leaveApplicationName)}`;
+
+  try {
+    const response = await api.get<{ message: LeaveCalendarResponse }>(
+      apiUrl,
+      {
+        headers: {
+          "Content-Type": "application/json",
+          ...getAuthHeader(apiKey, apiSecret),
+        },
+        timeout: 30000,
+      }
+    );
+
+    return (response.data as any)?.data || null;
+  } catch (error: any) {
+
+    return null;
+  }
+};
+
+// ============================================
+// Leave Calendar Preview (for Apply Leave)
+// ============================================
+
+export interface LeaveCalendarPreviewRequest {
+  leave_type: string;
+  from_date: string;
+  to_date: string;
+}
+
+export const getLeaveCalendarPreview = async (
+  body: LeaveCalendarPreviewRequest
+): Promise<LeaveCalendarResponse | null> => {
+  const { companyUrl, apiKey, apiSecret } = getUserCredentials();
+
+  const cleanUrl = companyUrl.replace(/\/$/, "");
+  const apiUrl = `${cleanUrl}/api/method/employee_self_service.mobile.ess.get_leave_calendar_preview?leave_type=${encodeURIComponent(body.leave_type)}&from_date=${encodeURIComponent(body.from_date)}&to_date=${encodeURIComponent(body.to_date)}`;
+
+  try {
+    const response = await api.get<{ message: LeaveCalendarResponse }>(
+      apiUrl,
+      {
+        headers: {
+          "Content-Type": "application/json",
+          ...getAuthHeader(apiKey, apiSecret),
+        },
+        timeout: 30000,
+      }
+    );
+
+    return (response.data as any)?.data || null;
+  } catch (error: any) {
+
     return null;
   }
 };

@@ -5,10 +5,15 @@ import { useAuth } from "../../auth/useAuth";
 import { useTheme } from "../../store/ThemeContext";
 import { getEmployeeCheckinList, getCheckinDetail, CheckinListItem, EmployeeCheckin, getAttendanceList, AttendanceDetails, AttendanceListItem } from "../../services/attendance.service";
 import {
+  getAttendanceRequests,
+  AttendanceRequestListItem,
+} from "../../services/attendanceRequest.service";
+import {
   EMPLOYEE_PAGE_CONTAINER,
   getPageCardStyle,
   getListItemCardClass,
 } from "../../utils/pageCardStyles";
+import { useNavigate } from "react-router-dom";
 
 const arabicDigits = "٠١٢٣٤٥٦٧٨٩";
 
@@ -18,7 +23,7 @@ const toArabic = (value: string | number) => {
 };
 
 // Dropdown options for attendance page
-type AttendanceView = "attendance_list" | "checkins_list";
+type AttendanceView = "attendance_list" | "checkins_list" | "attendance_request_list";
 
 // Filter types (design only - currently not applied to API)
 interface AttendanceFilters {
@@ -31,6 +36,7 @@ const AttendancePage = () => {
   const { language, t } = useLanguage();
   const { user } = useAuth();
   const { theme, themeColors } = useTheme();
+  const navigate = useNavigate();
   const [activeView, setActiveView] = useState<AttendanceView>("attendance_list");
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [checkinList, setCheckinList] = useState<CheckinListItem[]>([]);
@@ -47,6 +53,7 @@ const AttendancePage = () => {
   } | null>(null);
   const [selectedAttendanceDate, setSelectedAttendanceDate] = useState<AttendanceListItem | null>(null);
   const [attendanceLoading, setAttendanceLoading] = useState(false);
+  const [attendanceRequestList, setAttendanceRequestList] = useState<AttendanceRequestListItem[]>([]);
   
   // Filter state
   const [filterOpen, setFilterOpen] = useState(false);
@@ -77,6 +84,7 @@ const AttendancePage = () => {
   const attendanceOptions: { key: AttendanceView; label: string; icon: ReactNode }[] = [
     { key: "attendance_list", label: t("attendanceList"), icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg> },
     { key: "checkins_list", label: t("checkinsList"), icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> },
+    { key: "attendance_request_list", label: t("attendanceRequests") || "Attendance Requests", icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 16l-4-4m0 0l4-4m-4 4h8" /></svg> },
   ];
 
   useEffect(() => {
@@ -241,6 +249,21 @@ const AttendancePage = () => {
   const close = () => {
     setSelectedCheckin(null);
   };
+
+  // Fetch attendance request list from API
+  useEffect(() => {
+    const fetchAttendanceRequestList = async () => {
+      if (activeView !== "attendance_request_list" || !user?.employeeId) return;
+      
+      try {
+        const response = await getAttendanceRequests();
+        setAttendanceRequestList(response.data || []);
+      } catch (err: any) {
+        console.error("[AttendancePage] Error fetching attendance requests:", err);
+      }
+    };
+    fetchAttendanceRequestList();
+  }, [activeView, user?.employeeId]);
 
   // Helper to parse date string that might be in format "YYYY-MM-DD HH:MM:SS" or ISO
   const parseDateString = (dateStr: string): Date => {
@@ -514,16 +537,28 @@ const AttendancePage = () => {
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h1 className="text-xl font-bold text-gray-800">{t("attendance")}</h1>
-          <button
-            onClick={() => setFilterOpen(true)}
-            className="flex items-center gap-1 px-3 py-2 text-black rounded-lg transition-colors shadow-sm"
-            style={{ backgroundColor: themeColors.primary }}
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-            </svg>
-            <span className="text-sm font-medium">{t("filter")}</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => navigate("/attendance/requests/new")}
+              className="flex items-center gap-1 px-3 py-2 text-black rounded-lg transition-colors shadow-sm"
+              style={{ backgroundColor: themeColors.primary }}
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0h6" />
+              </svg>
+              <span className="text-sm font-medium">{t("applyAttendance") || "Apply Attendance"}</span>
+            </button>
+            <button
+              onClick={() => setFilterOpen(true)}
+              className="flex items-center gap-1 px-3 py-2 text-black rounded-lg transition-colors shadow-sm"
+              style={{ backgroundColor: themeColors.primary }}
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+              </svg>
+              <span className="text-sm font-medium">{t("filter")}</span>
+            </button>
+          </div>
         </div>
 
         {/* Calendar Card */}
@@ -886,7 +921,54 @@ const AttendancePage = () => {
         </div>
       )}
 
-      {/* Detail Modal */}
+{/* Attendance Request List View */}
+      {activeView === "attendance_request_list" && (
+        <div className="space-y-4">
+          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">
+            {t("attendanceRequests")}
+          </h2>
+
+          {attendanceRequestList.length === 0 ? (
+            <div className={`${getPageCardStyle(theme)} p-8 text-center text-gray-500`}>
+              <p>{t("noAttendanceRequests") || "No attendance requests found"}</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {attendanceRequestList.map((request, idx) => (
+                <motion.div
+                  key={request.name || idx}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: idx * 0.05 }}
+                  onClick={() => navigate(`/attendance/requests/${request.name}`)}
+                  className={getListItemCardClass(theme)}
+                >
+                  <div className="flex items-start justify-between mb-1">
+                    <h4 className="font-medium text-gray-800 text-sm">{request.reason || "No Reason"}</h4>
+                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                      request.docstatus === 0 ? "bg-gray-100 text-gray-700" :
+                      request.docstatus === 1 ? "bg-green-100 text-green-700" :
+                      "bg-red-100 text-red-700"
+                    }`}>
+                      {request.docstatus === 0 ? (t("draft") || "Draft") :
+                       request.docstatus === 1 ? (t("approved") || "Approved") :
+                       (t("cancelled") || "Cancelled")}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    {request.from_date} – {request.to_date}
+                  </p>
+                  {request.shift && (
+                    <p className="text-xs text-gray-400">Shift: {request.shift}</p>
+                  )}
+                </motion.div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+       {/* Detail Modal */}
       <AnimatePresence>
         {selectedCheckin && (
           <>

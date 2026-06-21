@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, ReactNode, useRef } from "react";
+﻿import { useState, useEffect, useMemo, ReactNode, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLanguage } from "../../i18n/LanguageContext";
 import { useTheme } from "../../store/ThemeContext";
@@ -8,15 +8,20 @@ import {
   getLeaveApprover,
   getLeaveApplicationDetail,
   getUserDisplayName,
+  getLeaveCalendarDetails,
+  getLeaveCalendarPreview,
   LeaveApplicationListResponse,
   LeaveApplication,
   LeaveApplicationDetail,
   LeaveTypeBalance,
   CreateLeaveApplicationRequest,
+  LeaveCalendarResponse,
+  LeaveCalendarSickLeaveSlab,
 } from "../../services/leave.service";
 import { translateBatch, translateDynamic, shouldTranslate, LANGUAGES } from "../../services/translation.service";
 import LeaveApprovalFlow from "../../components/leave/LeaveApprovalFlow";
 import LeaveCalendarView from "../../components/leave/LeaveCalendarView";
+import LeaveCalendarPreviewSection from "../../components/leave/LeaveCalendarPreviewSection";
 import { getHolidayListDetails, HolidayItem } from "../../services/holiday.service";
 import { getEmployeeProfile } from "../../services/employee.service";
 import { getUserCredentials } from "../../services/leave.service";
@@ -154,6 +159,16 @@ const LeavePage = () => {
   const [approverDisplayName, setApproverDisplayName] = useState("");
   const [approvalFlowLoading, setApprovalFlowLoading] = useState(false);
   const [leaveHolidays, setLeaveHolidays] = useState<HolidayItem[]>([]);
+  const [leaveCalendarData, setLeaveCalendarData] = useState<LeaveCalendarResponse | null>(null);
+  const [leaveCalendarLoading, setLeaveCalendarLoading] = useState(false);
+  const [leaveCalendarError, setLeaveCalendarError] = useState<string | null>(null);
+  const [leavePreviewData, setLeavePreviewData] = useState<LeaveCalendarResponse | null>(null);
+  const [leavePreviewLoading, setLeavePreviewLoading] = useState(false);
+  const [leavePreviewError, setLeavePreviewError] = useState<string | null>(null);
+  const [showLeaveConflictModal, setShowLeaveConflictModal] = useState(false);
+  const [conflictingLeave, setConflictingLeave] = useState<LeaveApplication | null>(null);
+  const [sickLeaveSlab, setSickLeaveSlab] = useState<LeaveCalendarSickLeaveSlab | null>(null);
+  const [sickSlabLoading, setSickSlabLoading] = useState(false);
 
   const [toast, setToast] = useState<{
     message: string;
@@ -222,7 +237,7 @@ const LeavePage = () => {
         statusMap.forEach((v, k) => { stResult[k] = v; });
         setTranslatedStatuses(stResult);
       } catch (err) {
-        console.error("[LeavePage Translation Error]", err);
+        // translation error suppressed
         if (!cancelled) {
           setTranslatedLeaveTypes({});
           setTranslatedStatuses({});
@@ -283,7 +298,7 @@ const LeavePage = () => {
         }
       } catch (err: any) {
         if (cancelled) return;
-        console.error("[LeavePage] Fetch error:", err);
+        // fetch error suppressed
         setLoadError(err.message || t("loadError") || "Failed to load leave data");
       } finally {
         if (!cancelled) setLoading(false);
@@ -309,6 +324,10 @@ const LeavePage = () => {
 
     const found = leaveApplications.find((app) => app.name === leaveId);
     if (found) {
+
+
+
+
       setSelectedLeave(found);
       setShowDetail(true);
     } else {
@@ -325,12 +344,20 @@ const LeavePage = () => {
       return;
     }
 
+
     let cancelled = false;
 
     const fetchApprovalFlow = async () => {
       setApprovalFlowLoading(true);
       try {
         const detail = await getLeaveApplicationDetail(selectedLeave.name);
+
+
+
+
+
+
+
         if (cancelled) return;
 
         setLeaveApplicationDetail(detail);
@@ -370,9 +397,11 @@ const LeavePage = () => {
         if (cancelled || !profile?.holidayList) return;
 
         const details = await getHolidayListDetails(profile.holidayList);
-        if (!cancelled) {
-          setLeaveHolidays(details.holidays || []);
-        }
+        if (cancelled) return;
+
+
+
+        setLeaveHolidays(details.holidays || []);
       } catch {
         if (!cancelled) setLeaveHolidays([]);
       }
@@ -381,6 +410,75 @@ const LeavePage = () => {
     fetchHolidays();
     return () => { cancelled = true; };
   }, [showDetail, selectedLeave]);
+
+  useEffect(() => {
+    if (!showDetail || !selectedLeave?.name) {
+      setLeaveCalendarData(null);
+      setLeaveCalendarError(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    const fetchCalendar = async () => {
+      setLeaveCalendarLoading(true);
+      setLeaveCalendarError(null);
+      try {
+
+
+
+        const data = await getLeaveCalendarDetails(selectedLeave.name);
+
+
+
+
+
+
+
+
+
+
+
+
+        if (cancelled) return;
+        setLeaveCalendarData(data);
+        if (!data) {
+          setLeaveCalendarError("Failed to load calendar details");
+        }
+      } catch (err: any) {
+
+        if (!cancelled) {
+          setLeaveCalendarError(err.message || "Failed to load calendar details");
+          setLeaveCalendarData(null);
+        }
+      } finally {
+        if (!cancelled) setLeaveCalendarLoading(false);
+      }
+    };
+
+    fetchCalendar();
+    return () => { cancelled = true; };
+  }, [showDetail, selectedLeave?.name]);
+
+  useEffect(() => {
+
+
+    if (selectedLeave) {
+
+    }
+
+  }, [selectedLeave]);
+
+  useEffect(() => {
+    if (!showDetail) return;
+
+
+
+    if (selectedLeave) {
+
+    }
+
+  }, [showDetail]);
 
   const isSickLeave = formLeaveType
     ?.trim()
@@ -401,7 +499,23 @@ const LeavePage = () => {
 
   const isHalfDayDateRequired = halfDay && fromDate && toDate && fromDate !== toDate;
 
+  const isSickLeaveFullPay = formLeaveType
+    ?.trim()
+    .toLowerCase()
+    .includes("sick leave") && !formLeaveType?.toLowerCase().includes("partial") && !formLeaveType?.toLowerCase().includes("unpaid");
+
+  const isSickLeavePartialPay = formLeaveType
+    ?.trim()
+    .toLowerCase()
+    .includes("sick leave") && formLeaveType?.toLowerCase().includes("partial");
+
+  const isSickLeaveUnpaid = formLeaveType
+    ?.trim()
+    .toLowerCase()
+    .includes("sick leave") && formLeaveType?.toLowerCase().includes("unpaid");
+
   const shouldShowAttachments =
+    isSickLeaveFullPay ||
     isSickLeave ||
     isMaternityLeave ||
     isExaminationLeave ||
@@ -419,50 +533,79 @@ const LeavePage = () => {
       .includes("sick leave");
   }, [formLeaveType]);
 
+  const fetchSickLeaveSlab = async (leaveType: string, from: string, to: string) => {
+    if (!isSickLeave || !leaveType || !from || !to) {
+      setSickLeaveSlab(null);
+      return;
+    }
+    setSickSlabLoading(true);
+    try {
+      const data = await getLeaveCalendarPreview({ leave_type: leaveType, from_date: from, to_date: to });
+      if (data?.sick_leave_slab) {
+        setSickLeaveSlab(data.sick_leave_slab);
+      } else {
+        setSickLeaveSlab(null);
+      }
+    } catch (err) {
+      setSickLeaveSlab(null);
+    } finally {
+      setSickSlabLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isSickLeave && formLeaveType && fromDate && toDate) {
+      fetchSickLeaveSlab(formLeaveType, fromDate, toDate);
+    }
+  }, [isSickLeave, formLeaveType, fromDate, toDate]);
+
   const handleApplyClick = async () => {
-    console.log("[LeavePage] Apply button clicked — checking leave approver...");
     setDropdownOpen(false);
 
     try {
       const approver = await getLeaveApprover();
       if (!approver) {
-        console.warn("[LeavePage] No leave_approver found for employee");
         setShowNoApproverModal(true);
         return;
       }
       setLeaveApprover(approver);
-      console.log("[LeavePage] Leave approver fetched successfully:", approver);
+
+      setLeavePreviewLoading(true);
+      setLeavePreviewError(null);
+      setLeavePreviewData(null);
+
+      try {
+        const listRes = await getLeaveApplicationList();
+        const allLeaves = [
+          ...(listRes.data?.upcoming || []),
+          ...(listRes.data?.taken || []),
+        ];
+        if (allLeaves.length > 0) {
+          const latestLeave = allLeaves[0];
+          const calendarData = await getLeaveCalendarDetails(latestLeave.name);
+          setLeavePreviewData(calendarData);
+          if (!calendarData) {
+            setLeavePreviewError("Failed to load calendar details");
+          }
+        }
+      } catch (err: any) {
+        setLeavePreviewError(err.message || "Failed to load calendar preview");
+      } finally {
+        setLeavePreviewLoading(false);
+      }
+
       setActiveView("apply");
     } catch (err) {
-      console.error("[LeavePage] Error while fetching leave approver:", err);
       setShowNoApproverModal(true);
     }
   };
 
   // --- Submit leave application ---
   const handleSubmit = async () => {
-    console.log("=================================");
-    console.log("[APPLY BUTTON CLICKED]");
-    console.log("Current form values:");
 
-    console.log({
-      leaveType: formLeaveType,
-      fromDate,
-      toDate,
-      customLeaveIntent,
-      handOverDate,
-      firstDayReportToWork,
-      reason,
-      halfDay,
-      halfDayDate,
-      excludePublicHolidays,
-      isMaternityLeave,
-      isPaternityLeave,
-      isBereavementLeave,
-      customExpectedDeliveryDate,
-      customChildBirthDate,
-      customRelationshipType,
-    });
+
+
+  
 
     setFormError(null);
 
@@ -515,7 +658,7 @@ const LeavePage = () => {
       return;
     }
 
-    const isSickLeaveVariant = isSickLeave || isMaternityLeave;
+    const isSickLeaveVariant = isSickLeaveFullPay || isSickLeavePartialPay || isSickLeaveUnpaid || isMaternityLeave;
     if (isSickLeaveVariant && !customApprovedLeaveForm) {
       setFormError("Medical Certificate Proof is required");
       return;
@@ -526,28 +669,42 @@ const LeavePage = () => {
       return;
     }
 
-    if (isMarriageLeave && !customMarriageProof) {
+  if (isMarriageLeave && !customMarriageProof) {
       setFormError("Marriage Proof is required");
       return;
     }
 
-    console.log("[LeavePage] Submit body:", {
-      leave_type: formLeaveType,
-      from_date: fromDate,
-      to_date: toDate,
-      custom_leave_intent: customLeaveIntent,
-      hand_over_date: handOverDate,
-      first_day_report_to_work: firstDayReportToWork,
-      description: reason.trim() || undefined,
-      exclude_public_holidays: excludePublicHolidays,
-      half_day: halfDay,
-      half_day_date: halfDay ? halfDayDate || fromDate : undefined,
-      custom_expected_delivery_date: isMaternityLeave ? customExpectedDeliveryDate : undefined,
-      custom_child_birth_date: isPaternityLeave ? customChildBirthDate : undefined,
-      custom_relationship_type: isBereavementLeave ? customRelationshipType : undefined,
-      leave_approver: leaveApprover || undefined,
-    });
-
+    if (sickLeaveSlab && (isSickLeaveFullPay || isSickLeavePartialPay || isSickLeaveUnpaid)) {
+      const fullRemaining = (sickLeaveSlab.full_pay_allowed ?? 0) - (sickLeaveSlab.full_pay_used ?? 0);
+      const partialRemaining = (sickLeaveSlab.partial_pay_allowed ?? 0) - (sickLeaveSlab.partial_pay_used ?? 0);
+      const unpaidRemaining = (sickLeaveSlab.unpaid_allowed ?? 0) - (sickLeaveSlab.unpaid_used ?? 0);
+      
+      if (isSickLeavePartialPay && fullRemaining > 0) {
+        setFormError(t("sickLeaveSequenceError") || "Please apply for Full Pay Sick Leave first before applying for Partial Pay");
+        return;
+      }
+      
+      if (isSickLeaveUnpaid && (fullRemaining > 0 || partialRemaining > 0)) {
+        setFormError(t("sickLeaveSequenceUnpaidError") || "Please exhaust Full Pay and Partial Pay Sick Leave before applying for Unpaid");
+        return;
+      }
+      
+      if (isSickLeaveFullPay && fullRemaining <= 0) {
+        setFormError(t("sickLeaveFullPayExhausted") || "Full Pay Sick Leave balance is exhausted. Please apply for Partial Pay instead.");
+        return;
+      }
+      
+      if (isSickLeavePartialPay && partialRemaining <= 0) {
+        setFormError(t("sickLeavePartialPayExhausted") || "Partial Pay Sick Leave balance is exhausted. Please apply for Unpaid instead.");
+        return;
+      }
+      
+      if (isSickLeaveUnpaid && unpaidRemaining <= 0) {
+        setFormError(t("sickLeaveUnpaidExhausted") || "Unpaid Sick Leave balance is exhausted.");
+        return;
+      }
+    }
+    
     const body: CreateLeaveApplicationRequest = {
       leave_type: formLeaveType,
       from_date: fromDate,
@@ -597,7 +754,7 @@ const LeavePage = () => {
 
       setActiveView("list");
     } catch (err: any) {
-      console.error("[LeavePage] Submit error:", err);
+
       setFormError(err.message || t("leaveSubmitError") || "Failed to submit leave application");
     } finally {
       setSubmitting(false);
@@ -607,10 +764,39 @@ const LeavePage = () => {
   const parseAPIDate = (dateStr: string): Date => {
     const parts = dateStr.split("-");
     if (parts.length === 3) {
-      const [d, m, y] = parts.map(Number);
-      return new Date(y, m - 1, d);
+      const first = parseInt(parts[0], 10);
+      const second = parseInt(parts[1], 10);
+      const third = parseInt(parts[2], 10);
+      if (first > 31) {
+        return new Date(first, second - 1, third);
+      }
+      return new Date(third, second - 1, first);
     }
     return new Date(dateStr + "T00:00:00");
+  };
+
+  const parsePickerDate = (dateStr: string): Date => {
+    if (!dateStr) return new Date(NaN);
+    const parts = dateStr.split("-");
+    if (parts.length === 3) {
+      const [y, m, d] = parts.map(Number);
+      return new Date(y, m - 1, d);
+    }
+    return new Date(NaN);
+  };
+
+  const checkDateOverlap = (fromDate: string, toDate: string): LeaveApplication | null => {
+    if (!fromDate || !toDate) return null;
+    const newFrom = parsePickerDate(fromDate);
+    const newTo = parsePickerDate(toDate);
+    for (const app of leaveApplications) {
+      const existingFrom = parseAPIDate(app.from_date);
+      const existingTo = parseAPIDate(app.to_date);
+      if (newFrom <= existingTo && newTo >= existingFrom) {
+        return app;
+      }
+    }
+    return null;
   };
 
   const formatDate = (dateStr: string) => {
@@ -919,6 +1105,10 @@ const LeavePage = () => {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: idx * 0.05 }}
                     onClick={() => {
+
+
+
+
                       setSelectedLeave(app);
                       setShowDetail(true);
                     }}
@@ -959,6 +1149,10 @@ const LeavePage = () => {
                   <div
                     key={app.name || idx}
                     onClick={() => {
+
+
+
+
                       setSelectedLeave(app);
                       setShowDetail(true);
                     }}
@@ -1140,55 +1334,78 @@ const LeavePage = () => {
                       rows={3}
                       className="w-full p-3 border text-black rounded-xl bg-gray-50 resize-none"
                       placeholder={t("enterReason")}
-                    />
+                     />
+                   </div>
+                 </div>
+
+                 <LeaveCalendarPreviewSection
+                    data={leavePreviewData}
+                    loading={leavePreviewLoading}
+                    error={leavePreviewError}
+                    t={t}
+                  />
+
+                 <div className="border-b border-gray-100 pb-4">
+                   <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
+                     {t("leaveDates") || "Leave Dates"}
+                   </h3>
+
+<div className="grid grid-cols-2 gap-4 mt-3">
+                      <DatePickerField
+                        label={t("fromDate")}
+                        required
+                        value={fromDate}
+                        onChange={(val) => {
+                          setFromDate(val);
+                          if (toDate && val > toDate) setToDate("");
+                          if (val && toDate) {
+                            const overlap = checkDateOverlap(val, toDate);
+                            if (overlap) {
+                              setConflictingLeave(overlap);
+                              setShowLeaveConflictModal(true);
+                            }
+                          }
+                        }}
+                        placeholder={t("selectDate") || "Select date"}
+                      />
+                       <DatePickerField
+                         label={t("toDate")}
+                         required
+                         value={toDate}
+                         min={fromDate || undefined}
+                         onChange={(val) => {
+                           setToDate(val);
+                           if (fromDate && val) {
+                             const overlap = checkDateOverlap(fromDate, val);
+                             if (overlap) {
+                               setConflictingLeave(overlap);
+                               setShowLeaveConflictModal(true);
+                             }
+                           }
+                         }}
+                         placeholder={t("selectDate") || "Select date"}
+                       />
+                   </div>
+
+                  <div>
+                      <DatePickerField
+                        label={t("handOverDate") || "Hand Over Date"}
+                        required
+                        value={handOverDate}
+                        onChange={setHandOverDate}
+                        placeholder={t("selectDate") || "Select date"}
+                      />
+                   </div>
+
+                  <div className="mt-3">
+                     <DatePickerField
+                       label={t("firstDayReportToWork") || "First Day Report to Work"}
+                       required
+                       value={firstDayReportToWork}
+                       onChange={setFirstDayReportToWork}
+                       placeholder={t("selectDate") || "Select date"}
+                     />
                   </div>
-                </div>
-
-                <div className="border-b border-gray-100 pb-4">
-                  <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
-                    {t("leaveDates") || "Leave Dates"}
-                  </h3>
-
-                 <div className="mt-3">
-                    <DatePickerField
-                      label={t("handOverDate") || "Hand Over Date"}
-                      required
-                      value={handOverDate}
-                      onChange={setHandOverDate}
-                      placeholder={t("selectDate") || "Select date"}
-                    />
-                 </div>
-
-                  <div className="grid grid-cols-2 gap-4 mt-3">
-                    <DatePickerField
-                      label={t("fromDate")}
-                      required
-                      value={fromDate}
-                      onChange={(val) => {
-                        setFromDate(val);
-                        if (toDate && val > toDate) setToDate("");
-                      }}
-                      placeholder={t("selectDate") || "Select date"}
-                    />
-                    <DatePickerField
-                      label={t("toDate")}
-                      required
-                      value={toDate}
-                      min={fromDate || undefined}
-                      onChange={setToDate}
-                      placeholder={t("selectDate") || "Select date"}
-                    />
-                </div>
-
-                 <div className="mt-3">
-                    <DatePickerField
-                      label={t("firstDayReportToWork") || "First Day Report to Work"}
-                      required
-                      value={firstDayReportToWork}
-                      onChange={setFirstDayReportToWork}
-                      placeholder={t("selectDate") || "Select date"}
-                    />
-                 </div>
 
                 <div className="flex items-center justify-between py-2 mt-3">
                   <span className="text-sm text-gray-600">{t("halfDay") || "Half Day"}</span>
@@ -1404,7 +1621,7 @@ const LeavePage = () => {
                             accept=".pdf,.jpg,.jpeg,.png"
                             onChange={(e) => {
                               const file = e.target.files?.[0] ?? null;
-                              console.log("[LeavePage] medical certificate onChange — file:", file ? file.name : "null");
+
                               setCustomApprovedLeaveForm(file);
                             }}
                           />
@@ -1440,7 +1657,7 @@ const LeavePage = () => {
                             accept=".pdf,.jpg,.jpeg,.png"
                             onChange={(e) => {
                               const file = e.target.files?.[0] ?? null;
-                              console.log("[LeavePage] enrollment proof onChange — file:", file ? file.name : "null");
+
                               setCustomEnrollmentProof(file);
                             }}
                           />
@@ -1476,7 +1693,7 @@ const LeavePage = () => {
                             accept=".pdf,.jpg,.jpeg,.png"
                             onChange={(e) => {
                               const file = e.target.files?.[0] ?? null;
-                              console.log("[LeavePage] marriage proof onChange — file:", file ? file.name : "null");
+
                               setCustomMarriageProof(file);
                             }}
                           />
@@ -1599,13 +1816,61 @@ const LeavePage = () => {
                   OK
                 </button>
               </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+</motion.div>
+           </motion.div>
+         )}
+       </AnimatePresence>
 
-      <AnimatePresence>
-        {showDetail && selectedLeave && (
+       <AnimatePresence>
+         {showLeaveConflictModal && conflictingLeave && (
+           <>
+             <motion.div
+               initial={{ opacity: 0 }}
+               animate={{ opacity: 1 }}
+               exit={{ opacity: 0 }}
+               transition={{ duration: 0.2 }}
+               className="fixed inset-0 z-[210] flex items-center justify-center px-4 bg-black/40"
+               onClick={() => setShowLeaveConflictModal(false)}
+             >
+               <motion.div
+                 layout
+                 onClick={(e) => e.stopPropagation()}
+                 className="w-full max-w-sm rounded-2xl shadow-2xl p-6 bg-white"
+             >
+                 <div className="text-center">
+                   <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-yellow-100">
+                     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                     </svg>
+                   </div>
+                   <h3 className="text-lg font-semibold text-gray-800 mb-2">
+                     {t("leaveAlreadyExists") || "Leave Already Exists"}
+                   </h3>
+                   <p className="text-sm text-gray-700 font-medium mb-1">
+                     {conflictingLeave.leave_type}
+                   </p>
+                   <p className="text-sm text-gray-500 mb-6">
+                     {formatDate(conflictingLeave.from_date)} → {formatDate(conflictingLeave.to_date)}
+                   </p>
+                   <p className="text-xs text-gray-600 leading-relaxed mb-6">
+                     {t("leaveAlreadyAppliedMessage") || "You already have a leave application for these dates."}
+                   </p>
+                   <button
+                     type="button"
+                     onClick={() => setShowLeaveConflictModal(false)}
+                     className="w-full bg-indigo-600 text-white py-3 rounded-xl font-medium hover:bg-indigo-700 transition-colors"
+                   >
+                     OK
+                   </button>
+                 </div>
+               </motion.div>
+             </motion.div>
+           </>
+         )}
+       </AnimatePresence>
+
+       <AnimatePresence>
+         {showDetail && selectedLeave && (
           <>
             <motion.div
               initial={{ opacity: 0 }}
@@ -1643,14 +1908,14 @@ const LeavePage = () => {
                   </button>
                 </div>
 
-                <div className="px-5 py-4 border-b border-gray-100">
+                <div className="px-5 py-4 border-b border-gray-100 max-h-[60vh] overflow-y-auto">
                   <LeaveCalendarView
-                    fromDate={selectedLeave.from_date}
-                    toDate={selectedLeave.to_date}
-                    leaveType={getTranslatedLeaveType(selectedLeave.leave_type)}
-                    totalLeaveDays={selectedLeave.total_leave_days}
-                    holidays={leaveHolidays}
-                    t={t}
+                    data={leaveCalendarData}
+                    loading={leaveCalendarLoading}
+                    error={leaveCalendarError}
+                    showSummary={true}
+                    showBridgePolicy={true}
+                    showSickSlab={true}
                   />
                 </div>
 

@@ -164,7 +164,7 @@ const Sidebar = ({ isOpen, onClose, isMinimized = false, onToggleMinimize }: Pro
     { to: "/hr-dashboard/employees", label: isRTL ? "الموظفون" : "Employees", icon: Icons.profile, phase: 1, hrOnly: true },
     { to: "/tasks", label: isRTL ? "المهام" : "Tasks", icon: Icons.tasks, phase: 1, hrOnly: false },
     { to: "/documents", label: isRTL ? "المستندات" : "Documents", icon: Icons.documents, phase: 2, hrOnly: false },
-    { to: "/reports", label: isRTL ? "التقارير" : "Reports", icon: Icons.reports, phase: 2, hrOnly: false },
+    { to: "/reports", label: isRTL ? "التقارير" : "Reports", icon: Icons.reports, phase: 1, hrOnly: false },
     { to: "/travel", label: isRTL ? "السفر" : "Travel", icon: Icons.travel, phase: 1, hrOnly: false },
     { to: "/loan", label: isRTL ? "القرض" : "Loan", icon: Icons.loan, phase: 3, hrOnly: false },
     { to: "/settings", label: isRTL ? "الإعدادات" : "Settings", icon: Icons.settings, phase: 1, hrOnly: false },

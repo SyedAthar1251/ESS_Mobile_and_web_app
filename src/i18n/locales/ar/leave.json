@@ -92,5 +92,12 @@
   "daysDeducted": "الأيام المخصومة",
   "status": "الحالة",
   "createdBy": "أنشأ بواسطة",
-  "leaveApprover": "معتمد الإجازة"
+  "leaveApprover": "معتمد الإجازة",
+  "leaveAlreadyExists": "الإجازة موجودة مسبقاً",
+  "leaveAlreadyAppliedMessage": "لديك بالفعل طلب إجازة لهذه التواريخ.",
+  "sickLeaveSequenceError": "يرجى تطبيق الإجازة المرضية بدفع كامل أولاً قبل التقدم للدفع الجزئي",
+  "sickLeaveSequenceUnpaidError": "يرجى استنفاذ الإجازة المرضية بدفع كامل وجزئي قبل التقدم لغير المدفوعة",
+  "sickLeaveFullPayExhausted": "رصيد الإجازة المرضية بدفع كامل منتهي. يرجى التقدم للدفع الجزئي بدلاً من ذلك.",
+  "sickLeavePartialPayExhausted": "رصيد الإجازة المرضية الجزئية منتهي. يرجى التقدم لغير المدفوعة بدلاً من ذلك.",
+  "sickLeaveUnpaidExhausted": "رصيد الإجازة المرضية غير المدفوعة منتهي."
 }

@@ -199,3 +199,53 @@ export const changePassword = async (credentials: ChangePasswordCredentials): Pr
     }
   }
 };
+
+// Forgot Password types
+export interface ForgotPasswordRequest {
+  companyUrl: string;
+  email: string;
+}
+
+export interface ForgotPasswordResponse {
+  message?: string;
+  exception?: string;
+  error?: string;
+}
+
+export const forgotPassword = async (credentials: ForgotPasswordRequest): Promise<ForgotPasswordResponse> => {
+  const { companyUrl, email } = credentials;
+
+  console.log("[AuthService] Forgot password request for:", email);
+
+  const cleanUrl = companyUrl.replace(/\/$/, "");
+  const apiUrl = `${cleanUrl}/api/method/employee_self_service.mobile.ess.forgot_password`;
+  console.log("[AuthService] Full API URL:", apiUrl);
+
+  try {
+    const response = await api.post<ForgotPasswordResponse>(
+      apiUrl,
+      { email: email },
+      {
+        headers: {
+          "Content-Type": "application/json",
+        },
+        timeout: 30000,
+      }
+    );
+
+    console.log("[AuthService] Forgot password successful:", response.data);
+    return response.data;
+  } catch (error: any) {
+    const { message, status } = getMobileError(error);
+    console.log("[AuthService] Forgot password error details:", {
+      status,
+      message,
+    });
+
+    if (error.code === "ECONNABORTED") {
+      throw new Error("Request timed out. Please try again.");
+    } else {
+      throw new Error(message || "Failed to send reset link. Please try again.");
+    }
+  }
+};
