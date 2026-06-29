@@ -2,7 +2,7 @@ import { Capacitor } from "@capacitor/core";
 import axios from "axios";
 
 const axiosApi = axios.create({
-  timeout: 30000,
+  timeout: 60000,
 });
 
 const api = {

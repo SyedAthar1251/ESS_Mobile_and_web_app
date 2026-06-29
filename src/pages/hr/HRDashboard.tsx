@@ -8,6 +8,7 @@ import { getPendingLeaves, HRApplication } from "../../services/hrLeave.service"
 import { getPendingExpenses, HRExpenseClaim } from "../../services/hrExpense.service";
 import { getHRNotifications, HRNotificationItem } from "../../services/hrNotification.service";
 import { getEmployees } from "../../services/hrEmployee.service";
+import { getPendingLoans, HRLoanApplication } from "../../services/hrLoan.service";
 
 const HRDashboard = () => {
   const { themeColors } = useTheme();
@@ -16,6 +17,7 @@ const HRDashboard = () => {
 
   const [pendingLeaveCount, setPendingLeaveCount] = useState(0);
   const [pendingExpenseCount, setPendingExpenseCount] = useState(0);
+  const [pendingLoanCount, setPendingLoanCount] = useState(0);
   const [totalEmployees, setTotalEmployees] = useState(0);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -26,11 +28,12 @@ const HRDashboard = () => {
     setError(null);
 
     try {
-      const [leavesRes, expensesRes, notifRes, empRes] = await Promise.allSettled([
+      const [leavesRes, expensesRes, notifRes, empRes, loansRes] = await Promise.allSettled([
         getPendingLeaves(),
         getPendingExpenses(),
         getHRNotifications(),
         getEmployees(1, 1),
+        getPendingLoans(),
       ]);
 
       if (leavesRes.status === "fulfilled") {
@@ -51,6 +54,11 @@ const HRDashboard = () => {
       if (empRes.status === "fulfilled") {
         const emps = empRes.value.data || [];
         setTotalEmployees(emps.length > 0 ? emps.length : 0);
+      }
+
+      if (loansRes.status === "fulfilled") {
+        const loans = loansRes.value.data || [];
+        setPendingLoanCount(loans.filter((l: HRLoanApplication) => l.status === "Open").length);
       }
     } catch (err: any) {
       setError(err.message || "Failed to load dashboard data");
@@ -74,6 +82,7 @@ const HRDashboard = () => {
   const isHRManager = userRoles.includes("HR Manager");
   const isLeaveApprover = userRoles.includes("Leave Approver") || isHRManager;
   const isExpenseApprover = userRoles.includes("Expense Approver") || isHRManager;
+  const isLoanApprover = userRoles.includes("Loan Approver") || isHRManager;
 
   return (
     <div className="space-y-6">
@@ -94,9 +103,9 @@ const HRDashboard = () => {
             <h1 className="text-xl font-bold" style={{ color: themeColors.text }}>
               Welcome, {user?.fullName || "HR Manager"}
             </h1>
-            <p className="text-sm" style={{ color: themeColors.textSecondary }}>
+            {/* <p className="text-sm" style={{ color: themeColors.textSecondary }}>
               {userRoles.join(", ") || "HR Dashboard"}
-            </p>
+            </p> */}
           </div>
         </div>
         <button
@@ -140,6 +149,20 @@ const HRDashboard = () => {
             icon={
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+            }
+          />
+        )}
+        {isLoanApprover && (
+          <HRStatCard
+            title="Pending Loans"
+            value={pendingLoanCount}
+            color="#6366f1"
+            loading={loading}
+            onClick={() => navigate("/hr-dashboard/loan-approvals")}
+            icon={
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 9v1m9-5a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             }
           />
@@ -211,6 +234,23 @@ const HRDashboard = () => {
               </div>
               <p className="text-sm font-semibold" style={{ color: themeColors.text }}>Leave Approvals</p>
               <p className="text-xs mt-0.5" style={{ color: themeColors.textSecondary }}>Review leave requests</p>
+            </motion.button>
+          )}
+          {isLoanApprover && (
+            <motion.button
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.97 }}
+              onClick={() => navigate("/hr-dashboard/loan-approvals")}
+              className="rounded-2xl p-4 text-left shadow-sm"
+              style={{ background: themeColors.backgroundSecondary, border: `1px solid ${themeColors.border}` }}
+            >
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-2" style={{ background: "#6366f118" }}>
+                <svg className="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 9v1m9-5a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <p className="text-sm font-semibold" style={{ color: themeColors.text }}>Loan Approvals</p>
+              <p className="text-xs mt-0.5" style={{ color: themeColors.textSecondary }}>Review loan applications</p>
             </motion.button>
           )}
           {isExpenseApprover && (

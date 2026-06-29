@@ -13,6 +13,7 @@ import enNotifications from "./locales/en/notifications.json";
 import enHoliday from "./locales/en/holiday.json";
 import enReports from "./locales/en/reports.json";
 import enProfile from "./locales/en/profile.json";
+import enLoan from "./locales/en/loan.json";
 import arCommon from "./locales/ar/common.json";
 import arDashboard from "./locales/ar/dashboard.json";
 import arLogin from "./locales/ar/login.json";
@@ -26,6 +27,7 @@ import arNotifications from "./locales/ar/notifications.json";
 import arHoliday from "./locales/ar/holiday.json";
 import arReports from "./locales/ar/reports.json";
 import arProfile from "./locales/ar/profile.json";
+import arLoan from "./locales/ar/loan.json";
 
 // Merge all translations into one namespace
 const enTranslation = { 
@@ -41,7 +43,8 @@ const enTranslation = {
   ...enNotifications,
   ...enHoliday,
   ...enReports,
-  ...enProfile 
+  ...enProfile,
+  ...enLoan 
 };
 const arTranslation = { 
   ...arCommon, 
@@ -56,7 +59,8 @@ const arTranslation = {
   ...arNotifications,
   ...arHoliday,
   ...arReports,
-  ...arProfile 
+  ...arProfile,
+  ...arLoan 
 };
 
 i18n.use(initReactI18next).init({

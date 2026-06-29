@@ -1,7 +1,7 @@
 import { NavLink, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "../auth/useAuth";
-import { hasHRRole } from "../services/userRole.service";
+import { hasHRRole, hasAdminManagerRole } from "../services/userRole.service";
 import { useLanguage } from "../i18n/LanguageContext";
 import { useTheme } from "../store/ThemeContext";
 import { LANGUAGES } from "../i18n/languages";
@@ -145,6 +145,7 @@ const Sidebar = ({ isOpen, onClose, isMinimized = false, onToggleMinimize }: Pro
 
   const userRoles: string[] = (user as any)?.roles || [];
   const hasHRAccess = hasHRRole(userRoles);
+  const isLoanApprover = hasAdminManagerRole(userRoles);
 
   // Navigation tabs with clear icons - Phase 1 Focus
   // Phase 1: Dashboard, Attendance, Leave, Expense, Salary, Travel, Tasks (Core AlphaX)
@@ -161,6 +162,7 @@ const Sidebar = ({ isOpen, onClose, isMinimized = false, onToggleMinimize }: Pro
     { to: "/hr-dashboard", label: isRTL ? "لوحة القيادة للموظفين" : "HR Dashboard", icon: Icons.dashboard, phase: 1, hrOnly: true },
     { to: "/hr-dashboard/leave-approvals", label: isRTL ? "الموافقات على الإجازات" : "Leave Approvals", icon: Icons.leave, phase: 1, hrOnly: true },
     { to: "/hr-dashboard/expense-approvals", label: isRTL ? "الموافقات على المصروفات" : "Expense Approvals", icon: Icons.expense, phase: 1, hrOnly: true },
+    { to: "/hr-dashboard/loan-approvals", label: isRTL ? "موافقات القروض" : "Loan Approvals", icon: Icons.loan, phase: 1, hrOnly: true, adminManagerOnly: true },
     { to: "/hr-dashboard/employees", label: isRTL ? "الموظفون" : "Employees", icon: Icons.profile, phase: 1, hrOnly: true },
     { to: "/tasks", label: isRTL ? "المهام" : "Tasks", icon: Icons.tasks, phase: 1, hrOnly: false },
     { to: "/documents", label: isRTL ? "المستندات" : "Documents", icon: Icons.documents, phase: 2, hrOnly: false },

@@ -521,3 +521,201 @@ export const getEmployeeTaskHistory = async (name: string): Promise<EmployeeTask
     return [];
   }
 };
+
+// ============================================
+// LOAN APPROVAL INTERFACES
+// ============================================
+
+export interface PendingLoanApproval {
+  name: string;
+  applicant: string;
+  applicant_name: string | null;
+  loan_product: string;
+  loan_amount: number;
+  posting_date: string;
+  repayment_method: string;
+  repayment_periods: number;
+  repayment_amount: number;
+  description: string;
+  status: string;
+}
+
+export interface LoanApprovalDetail {
+  name: string;
+  applicant: string;
+  applicant_name: string | null;
+  company: string;
+  loan_product: string;
+  loan_amount: number;
+  posting_date: string;
+  repayment_method: string;
+  repayment_periods: number;
+  repayment_amount: number;
+  total_payable_amount: number;
+  total_payable_interest: number;
+  description: string;
+  status: string;
+  is_secured_loan: number;
+}
+
+export interface AdminLoanItem {
+  name: string;
+  applicant: string;
+  applicant_name: string;
+  loan_product: string;
+  loan_amount: number;
+  disbursed_amount: number;
+  status: string;
+  monthly_repayment_amount: number;
+  total_payment: number;
+  total_principal_paid: number;
+  loan_application: string;
+}
+
+export interface LoanApprovalsWithLoansResponse {
+  applications: PendingLoanApproval[];
+  loans: AdminLoanItem[];
+}
+
+// ============================================
+// LOAN APPROVAL FUNCTIONS
+// ============================================
+
+export const getLoanApprovals = async (): Promise<LoanApprovalsWithLoansResponse> => {
+  const { companyUrl, apiKey, apiSecret } = getUserCredentials();
+  const cleanUrl = companyUrl.replace(/\/$/, "");
+  const apiUrl = `${cleanUrl}/api/method/employee_self_service.mobile.loan_admin.get_pending_loan_approvals`;
+
+  try {
+    const response = await api.get<{ message: string; data: { applications: PendingLoanApproval[]; loans: AdminLoanItem[] } }>(apiUrl, {
+      headers: {
+        "Content-Type": "application/json",
+        ...getAuthHeader(apiKey, apiSecret),
+      },
+    });
+    const applications = response.data?.data?.applications || [];
+    const loans = response.data?.data?.loans || [];
+    console.log("[AdminService] getLoanApprovals applications count:", applications.length, "loans count:", loans.length);
+    console.log("[AdminService] getLoanApprovals statuses:", [...new Set(applications.map((a: PendingLoanApproval) => a.status))]);
+    return { applications, loans };
+  } catch (error: any) {
+    console.error("[AdminService] getLoanApprovals failed:", error);
+    const { message, status } = getMobileError(error);
+    if (status === 401) throw new Error("Authentication failed. Please login again.");
+    throw new Error(message || "Failed to fetch loan approvals");
+  }
+};
+
+export const getLoanApprovalDetail = async (name: string): Promise<LoanApprovalDetail | null> => {
+  const { companyUrl, apiKey, apiSecret } = getUserCredentials();
+  const cleanUrl = companyUrl.replace(/\/$/, "");
+  const apiUrl = `${cleanUrl}/api/method/employee_self_service.mobile.loan_admin.get_loan_application_approval_details?name=${encodeURIComponent(name)}`;
+
+  try {
+    const response = await api.get<{ message: LoanApprovalDetail }>(apiUrl, {
+      headers: {
+        "Content-Type": "application/json",
+        ...getAuthHeader(apiKey, apiSecret),
+      },
+    });
+    console.log("[AdminService] getLoanApprovalDetail raw response:", response.data);
+    return response.data?.message || null;
+  } catch (error: any) {
+    console.error("[AdminService] getLoanApprovalDetail failed:", error);
+    return null;
+  }
+};
+
+export const approveLoanApplication = async (name: string, remarks?: string): Promise<{ success: boolean; message: string }> => {
+  const { companyUrl, apiKey, apiSecret } = getUserCredentials();
+  const cleanUrl = companyUrl.replace(/\/$/, "");
+  const apiUrl = `${cleanUrl}/api/method/employee_self_service.mobile.loan_admin.approve_loan_application`;
+
+  try {
+    const response = await api.post<{ message: { success: boolean; message: string } }>(apiUrl, { name, ...(remarks ? { remarks } : {}) }, {
+      headers: { "Content-Type": "application/json", ...getAuthHeader(apiKey, apiSecret) },
+    });
+    const result = response.data?.message || {};
+    return { success: result.success ?? false, message: result.message || "Loan application approved" };
+  } catch (error: any) {
+    console.error("[AdminService] Failed to approve loan application:", error);
+    const { message, status } = getMobileError(error);
+    if (status === 401) throw new Error("Authentication failed. Please login again.");
+    throw new Error(message || "Failed to approve loan application");
+  }
+};
+
+export const rejectLoanApplication = async (name: string, remarks?: string): Promise<{ success: boolean; message: string }> => {
+  const { companyUrl, apiKey, apiSecret } = getUserCredentials();
+  const cleanUrl = companyUrl.replace(/\/$/, "");
+  const apiUrl = `${cleanUrl}/api/method/employee_self_service.mobile.loan_admin.reject_loan_application`;
+
+  try {
+    const response = await api.post<{ message: { success: boolean; message: string } }>(apiUrl, { name, ...(remarks ? { remarks } : {}) }, {
+      headers: { "Content-Type": "application/json", ...getAuthHeader(apiKey, apiSecret) },
+    });
+    const result = response.data?.message || {};
+    return { success: result.success ?? false, message: result.message || "Loan application rejected" };
+  } catch (error: any) {
+    console.error("[AdminService] Failed to reject loan application:", error);
+    const { message, status } = getMobileError(error);
+    if (status === 401) throw new Error("Authentication failed. Please login again.");
+    throw new Error(message || "Failed to reject loan application");
+  }
+};
+
+export const createLoanFromApplication = async (name: string, repayment_start_date: string): Promise<{ success: boolean; message: string; loan: string; status: string }> => {
+  const { companyUrl, apiKey, apiSecret } = getUserCredentials();
+  const cleanUrl = companyUrl.replace(/\/$/, "");
+  const apiUrl = `${cleanUrl}/api/method/employee_self_service.mobile.loan_admin.create_loan_from_application`;
+
+  try {
+    const response = await api.post<{ message: { success: boolean; message: string; loan: string; status: string } }>(apiUrl, { name, repayment_start_date }, {
+      headers: { "Content-Type": "application/json", ...getAuthHeader(apiKey, apiSecret) },
+    });
+    const result = response.data?.message || {};
+    return { success: result.success ?? false, message: result.message || "Loan created", loan: result.loan || "", status: result.status || "" };
+  } catch (error: any) {
+    console.error("[AdminService] Failed to create loan from application:", error);
+    const { message, status } = getMobileError(error);
+    if (status === 401) throw new Error("Authentication failed. Please login again.");
+    throw new Error(message || "Failed to create loan from application");
+  }
+};
+
+export const disburseLoan = async (loan: string, disbursement_date: string, disbursed_amount?: number): Promise<{ success: boolean; message: string; disbursement: string; disbursed_amount: number }> => {
+  const { companyUrl, apiKey, apiSecret } = getUserCredentials();
+  const cleanUrl = companyUrl.replace(/\/$/, "");
+  const apiUrl = `${cleanUrl}/api/method/employee_self_service.mobile.loan_admin.disburse_loan`;
+
+  try {
+    const response = await api.post<{ message: { success: boolean; message: string; disbursement: string; disbursed_amount: number } }>(apiUrl, { loan, disbursement_date, ...(disbursed_amount !== undefined ? { disbursed_amount } : {}) }, {
+      headers: { "Content-Type": "application/json", ...getAuthHeader(apiKey, apiSecret) },
+    });
+    const result = response.data?.message || {};
+    return { success: result.success ?? false, message: result.message || "Loan disbursed", disbursement: result.disbursement || "", disbursed_amount: result.disbursed_amount ?? disbursed_amount ?? 0 };
+  } catch (error: any) {
+    console.error("[AdminService] Failed to disburse loan:", error);
+    const { message, status } = getMobileError(error);
+    if (status === 401) throw new Error("Authentication failed. Please login again.");
+    throw new Error(message || "Failed to disburse loan");
+  }
+};
+
+export const getLoanAdminList = async (): Promise<AdminLoanItem[]> => {
+  const { companyUrl, apiKey, apiSecret } = getUserCredentials();
+  const cleanUrl = companyUrl.replace(/\/$/, "");
+  const apiUrl = `${cleanUrl}/api/method/employee_self_service.mobile.loan_admin.get_loan_admin_list`;
+
+  try {
+    const response = await api.get<{ message: AdminLoanItem[] }>(apiUrl, {
+      headers: { "Content-Type": "application/json", ...getAuthHeader(apiKey, apiSecret) },
+    });
+    return response.data?.message || [];
+  } catch (error: any) {
+    console.error("[AdminService] Failed to fetch loan admin list:", error);
+    const { message, status } = getMobileError(error);
+    if (status === 401) throw new Error("Authentication failed. Please login again.");
+    throw new Error(message || "Failed to fetch loan admin list");
+  }
+};

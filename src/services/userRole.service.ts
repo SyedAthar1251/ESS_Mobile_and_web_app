@@ -35,6 +35,7 @@ const getMobileError = (error: any): { message: string; status: number } => {
 };
 
 const HR_ROLE_NAMES = ["HR Manager", "Leave Approver", "Expense Approver"];
+const ADMIN_MANAGER_ROLE_NAMES = ["ESS Admin Manager", "Ess Admin Manager", "Admin Manager"];
 
 export const getUserRoles = async (): Promise<string[]> => {
   const { companyUrl, apiKey, apiSecret } = getUserCredentials();
@@ -71,4 +72,8 @@ export const getUserRoles = async (): Promise<string[]> => {
 
 export const hasHRRole = (roles: string[]): boolean => {
   return roles.some((role) => HR_ROLE_NAMES.includes(role));
+};
+
+export const hasAdminManagerRole = (roles: string[]): boolean => {
+  return roles.some((role) => ADMIN_MANAGER_ROLE_NAMES.includes(role));
 };

@@ -24,6 +24,8 @@ import MagicNavPage from "../pages/MagicNav/MagicNavPage";
 import AdminDashboard from "../pages/Admin/AdminDashboard";
 import AdminLeaveApprovals from "../pages/Admin/LeaveApprovals";
 import AdminLeaveApprovalDetail from "../pages/Admin/LeaveApprovalDetail";
+import AdminLoanApprovals from "../pages/Admin/LoanApprovals";
+import AdminLoanApprovalDetail from "../pages/Admin/LoanApprovalDetail";
 import TravelApprovals from "../pages/Admin/TravelApprovals";
 import TravelApprovalDetail from "../pages/Admin/TravelApprovalDetail";
 import AttendanceApprovals from "../pages/Admin/AttendanceApprovals";
@@ -43,6 +45,8 @@ const LeaveApprovals = lazy(() => import("../pages/hr/LeaveApprovals"));
 const ExpenseApprovals = lazy(() => import("../pages/hr/ExpenseApprovals"));
 const HRNotifications = lazy(() => import("../pages/hr/HRNotifications"));
 const Employees = lazy(() => import("../pages/hr/Employees"));
+const LoanApprovals = lazy(() => import("../pages/hr/LoanApprovals"));
+const LoanApprovalDetail = lazy(() => import("../pages/hr/LoanApprovalDetail"));
 
 const LoadingFallback = () => (
   <div className="flex items-center justify-center min-h-screen">
@@ -61,6 +65,8 @@ const AppRoutes = () => {
         <Route path="/admin/print-settings" element={<PrintFormatSettings />} />
         <Route path="/admin/leave-approvals" element={<AdminLeaveApprovals />} />
         <Route path="/admin/leave-approvals/:name" element={<AdminLeaveApprovalDetail />} />
+        <Route path="/admin/loan-approvals" element={<AdminLoanApprovals />} />
+        <Route path="/admin/loan-approvals/:name" element={<AdminLoanApprovalDetail />} />
         <Route path="/admin/travel-approvals" element={<TravelApprovals />} />
         <Route path="/admin/travel-approvals/:name" element={<TravelApprovalDetail />} />
         <Route path="/admin/attendance-approvals" element={<AttendanceApprovals />} />
@@ -87,10 +93,10 @@ const AppRoutes = () => {
         <Route path="/expense" element={<AuthenticatedLayout><ExpensePage /></AuthenticatedLayout>} />
         <Route path="/salary" element={<AuthenticatedLayout><SalaryPage /></AuthenticatedLayout>} />
         <Route path="/tasks" element={<AuthenticatedLayout><TaskPage /></AuthenticatedLayout>} />
-        <Route path="/documents" element={<AuthenticatedLayout><ComingSoon title="Documents"><DocumentsPage /></ComingSoon></AuthenticatedLayout>} />
+        <Route path="/documents" element={<AuthenticatedLayout><DocumentsPage /></AuthenticatedLayout>} />
         <Route path="/reports" element={<AuthenticatedLayout><ReportsPage /></AuthenticatedLayout>} />
         <Route path="/travel" element={<AuthenticatedLayout><TravelPage /></AuthenticatedLayout>} />
-        <Route path="/loan" element={<AuthenticatedLayout><ComingSoon title="Loans"><LoanPage /></ComingSoon></AuthenticatedLayout>} />
+        <Route path="/loan" element={<AuthenticatedLayout><LoanPage /></AuthenticatedLayout>} />
         <Route path="/magic-nav" element={<AuthenticatedLayout><MagicNavPage /></AuthenticatedLayout>} />
       </Route>
 
@@ -101,6 +107,8 @@ const AppRoutes = () => {
         <Route path="/hr-dashboard/expense-approvals" element={<AuthenticatedLayout><Suspense fallback={<LoadingFallback />}><ExpenseApprovals /></Suspense></AuthenticatedLayout>} />
         <Route path="/hr-dashboard/notifications" element={<AuthenticatedLayout><Suspense fallback={<LoadingFallback />}><HRNotifications /></Suspense></AuthenticatedLayout>} />
         <Route path="/hr-dashboard/employees" element={<AuthenticatedLayout><Suspense fallback={<LoadingFallback />}><Employees /></Suspense></AuthenticatedLayout>} />
+        <Route path="/hr-dashboard/loan-approvals" element={<AuthenticatedLayout><Suspense fallback={<LoadingFallback />}><LoanApprovals /></Suspense></AuthenticatedLayout>} />
+        <Route path="/hr-dashboard/loan-approvals/:name" element={<AuthenticatedLayout><Suspense fallback={<LoadingFallback />}><LoanApprovalDetail /></Suspense></AuthenticatedLayout>} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" />} />

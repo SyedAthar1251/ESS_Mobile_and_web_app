@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "64315585846",
+    "project_id": "ess-alphax-workforce",
+    "storage_bucket": "ess-alphax-workforce.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:64315585846:android:780ec993a3f4e853366f97",
+        "android_client_info": {
+          "package_name": "alphax_ess.workforce"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBg3bq7J7G1X9-2t0_eCBew12fN6go-dGc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
