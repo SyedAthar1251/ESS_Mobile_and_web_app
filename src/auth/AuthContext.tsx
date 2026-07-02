@@ -1,8 +1,11 @@
 import { createContext, useEffect, useState, useCallback } from "react";
 import { LoginCredentials, LoginResponse, login as loginApi, logout as logoutApi } from "../services/auth.service";
-import { getUserRoles } from "../services/userRole.service";
+import { getUserRoles, hasAdminManagerRole } from "../services/userRole.service";
 import { getEmployeeProfile, EmployeeProfile } from "../services/employee.service";
+import { checkESSAdminUser } from "../services/admin.service";
 import { useNotificationStore } from "../store/notificationStore";
+import { registerForPushNotifications } from "../services/push.service";
+import { requestLocationPermissions } from "../services/location.service";
 
 type AuthContextType = {
   isAuthenticated: boolean;
@@ -10,6 +13,7 @@ type AuthContextType = {
   logout: () => Promise<void>;
   loading: boolean;
   error: string | null;
+  isCompanyAdmin: boolean;
   user: {
     userId: string;
     fullName: string;
@@ -19,6 +23,7 @@ type AuthContextType = {
     apiSecret?: string;
     userType?: string;
     roles?: string[];
+    isCompanyAdmin?: boolean;
   } | null;
   employee: EmployeeProfile | null;
 };
@@ -38,7 +43,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     apiSecret?: string;
     userType?: string;
     roles?: string[];
+    isCompanyAdmin?: boolean;
   } | null>(null);
+
+  const [isCompanyAdmin, setIsCompanyAdmin] = useState<boolean>(false);
 
   const [employee, setEmployee] = useState<EmployeeProfile | null>(() => {
     const saved = localStorage.getItem("ess_employee");
@@ -84,6 +92,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       // Restore notification polling for existing session
       startPolling();
       fetchNotifications();
+      registerForPushNotifications();
+      requestLocationPermissions();
     } else {
       console.log("[AuthContext] No existing session found");
     }
@@ -138,8 +148,27 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         // Fetch user roles for HR dashboard access
         try {
           const roles = await getUserRoles();
+          let updatedUser = { ...userData, roles, isCompanyAdmin: false };
+          
+          // Check ESS Admin User doctype if user has ESS Admin Manager role
+          if (hasAdminManagerRole(roles)) {
+            try {
+              const adminCheck = await checkESSAdminUser(userData.userId);
+              const isAdmin = adminCheck.success === true && adminCheck.data?.role === "Company Admin";
+              updatedUser.isCompanyAdmin = isAdmin;
+              setIsCompanyAdmin(isAdmin);
+              console.log("[AuthContext] ESS Admin User check:", isAdmin, adminCheck.data);
+            } catch (adminErr) {
+              console.log("[AuthContext] ESS Admin User check failed:", adminErr);
+              updatedUser.isCompanyAdmin = false;
+              setIsCompanyAdmin(false);
+            }
+          } else {
+            updatedUser.isCompanyAdmin = false;
+            setIsCompanyAdmin(false);
+          }
+          
           if (roles.length > 0) {
-            const updatedUser = { ...userData, roles };
             localStorage.setItem("ess_user", JSON.stringify(updatedUser));
             setUser(updatedUser);
             console.log("[AuthContext] Roles fetched:", roles);
@@ -156,6 +185,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         // Fetch notifications and start polling
         await fetchNotifications();
         startPolling();
+        registerForPushNotifications();
+        requestLocationPermissions();
       } else {
         throw new Error("Invalid response from server");
       }
@@ -191,6 +222,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setUser(null);
     setEmployee(null);
     setIsAuthenticated(false);
+    setIsCompanyAdmin(false);
     setError(null);
 
     // Clear notifications and stop polling
@@ -208,7 +240,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         loading: true,
         error: null,
         user: null,
-        employee: null
+        employee: null,
+        isCompanyAdmin: false
       }}>
         {children}
       </AuthContext.Provider>
@@ -223,7 +256,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       loading: false,
       error,
       user,
-      employee
+      employee,
+      isCompanyAdmin
     }}>
       {children}
     </AuthContext.Provider>

@@ -50,9 +50,8 @@ export interface CheckinDetailResponse {
 
 // Create employee log response
 export interface CreateEmployeeLogResponse {
-  message?: string;
-  data?: EmployeeCheckin;
-  exception?: string;
+  message: string;
+  data: EmployeeCheckin | null;
   error?: string;
 }
 
@@ -219,17 +218,36 @@ export const createEmployeeLog = async (
     });
 
     console.log("[Attendance] ESS Response:", response.data);
-    return response.data;
+
+    const responseData = response.data;
+    if (!responseData || !responseData.data || responseData.data === null) {
+      throw new Error(responseData?.message || "Unable to record attendance. Please try again.");
+    }
+
+    if (Array.isArray(responseData.data) && responseData.data.length === 0) {
+      throw new Error(responseData?.message || "Unable to record attendance. Please try again.");
+    }
+
+    return responseData;
   } catch (error: any) {
     console.error("[Attendance] ESS Error:", error);
 
-    const { message, status } = getMobileError(error);
+    let message = "Unable to record attendance. Please try again.";
+    let status = 0;
 
-    if (status === 401) {
+    if (error?.response?.status) {
+      status = error.response.status;
+      const data = error.response?.data;
+      message = data?.exception || data?.message || data?.error || error?.message || message;
+    } else if (error?.message) {
+      message = error.message;
+    }
+
+    if (status === 401 || message === "Authentication failed. Please login again.") {
       throw new Error("Authentication failed. Please login again.");
     }
 
-    throw new Error(message || "Unable to record attendance. Please try again.");
+    throw new Error(message);
   }
 };
 

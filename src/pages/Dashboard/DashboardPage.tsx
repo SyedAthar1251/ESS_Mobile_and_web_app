@@ -578,6 +578,7 @@ console.log("[DashboardPage] isPunchedIn:", isPunchedIn);
   // Separate function to handle punch out after confirmation
   const performPunchOut = async () => {
     setIsLoading(true);
+    setErrorAlert({ show: false, message: '' });
     try {
       // Get location for mobile
       let locationString = getLocationString();
@@ -669,9 +670,10 @@ console.log("[DashboardPage] isPunchedIn:", isPunchedIn);
      // eslint-disable-next-line react-hooks/exhaustive-deps
    }, [selectedAction]);
 
-   // Core punch logic for punch_in, break_out, break_in (punch_out handled separately)
-    const performPunchAction = async (action: 'punch_in' | 'break_out' | 'break_in') => {
-      // Validation
+    // Core punch logic for punch_in, break_out, break_in (punch_out handled separately)
+     const performPunchAction = async (action: 'punch_in' | 'break_out' | 'break_in') => {
+       setErrorAlert({ show: false, message: '' });
+       // Validation
       if (completedToday) {
          showErrorAlert("You have already completed your attendance for today.");
          return;
@@ -833,8 +835,18 @@ if (action === 'punch_in') {
     )},
   ];
 
-  return (
-    <div className="space-y-6 pb-20">
+   return (
+    <div className="space-y-6 pb-20 relative" style={{background: "linear-gradient(160deg, #3E6FB0, #1D4E86)"}}>
+      {/* Decorative organic blobs */}
+      <svg className="absolute top-0 right-0 w-64 h-64 opacity-[0.08] pointer-events-none" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+        <path fill="#FFFFFF" d="M44.7,-76.4C58.8,-69.2,71.8,-59.1,79.6,-46.3C87.4,-33.5,90,-17.9,88.5,-2.6C87,12.7,81.4,27.7,72.4,40.1C63.4,52.5,51,62.3,37.4,69.3C23.8,76.3,8.9,80.5,-5.5,88.6C-19.9,96.7,-33.8,108.7,-46.4,107.8C-59,106.9,-70.3,93.1,-78.2,77.4C-86.1,61.7,-90.6,44.1,-91.2,26.3C-91.8,8.5,-88.5,-9.5,-81.4,-25.8C-74.3,-42.1,-63.4,-56.7,-50.2,-65.2C-37,-73.7,-21.5,-76.1,-5.2,-69.2C11.1,-62.3,30.6,-83.6,44.7,-76.4Z" transform="translate(100 100)" />
+      </svg>
+      <svg className="absolute bottom-0 left-0 w-56 h-56 opacity-[0.06] pointer-events-none" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+        <path fill="#FFFFFF" d="M39.9,-65.7C52.6,-58.3,64.3,-48.6,71.4,-36.5C78.5,-24.4,81,-9.9,78.8,3.7C76.6,17.3,69.7,30,60.1,40.5C50.5,51,38.3,59.3,25.1,65.3C11.9,71.3,-2.3,75,-16.4,73.3C-30.5,71.6,-44.5,64.5,-55.3,54.3C-66.1,44.1,-73.7,30.8,-76.8,16.6C-79.9,2.4,-78.5,-12.7,-72.3,-25.8C-66.1,-38.9,-55.1,-50,-42.2,-58.1C-29.3,-66.2,-14.6,-71.3,-0.3,-70.8C14,-70.3,27.2,-73.1,39.9,-65.7Z" transform="translate(100 100)" />
+      </svg>
+      <svg className="absolute top-1/2 right-0 w-48 h-48 opacity-[0.05] pointer-events-none" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+        <path fill="#FFFFFF" d="M35.5,-58.1C47.1,-51.3,58.2,-42.2,65.3,-30.8C72.4,-19.4,75.5,-5.7,73.1,7C70.7,19.7,62.8,31.4,53.2,41.1C43.6,50.8,32.3,58.5,19.8,63.5C7.3,68.5,-6.4,70.8,-19.8,68.3C-33.2,65.8,-46.3,58.5,-56.1,48.1C-65.9,37.7,-72.4,24.2,-74.5,9.8C-76.6,-4.6,-74.3,-19.9,-66.8,-32.4C-59.3,-44.9,-46.6,-54.6,-33.3,-60.8C-20,-67,-6.1,-69.7,4.1,-75.4C14.3,-81.1,28.5,-75.8,35.5,-58.1Z" transform="translate(100 100)" />
+      </svg>
       {/* Custom Notification Toast */}
       {notification.visible && (
         <motion.div
@@ -966,141 +978,92 @@ if (action === 'punch_in') {
        )}
        */}
 
-       {/* Punch Card - Premium Attached Card Design */}
-       {/* Punch Card - Premium Attached Card Design */}
-       <motion.div
-         initial={{ scale: 0.98, opacity: 0 }}
-         animate={{ scale: 1, opacity: 1 }}
-         transition={{ delay: 0.1, duration: 0.4 }}
-         className={`
-           relative rounded-3xl shadow-xl mx-4 p-5
-           bg-gradient-to-br from-white via-white to-gray-50/40
-           border border-gray-100/60
-           overflow-hidden
-         `}
-         style={getCardStyle()}
-       >
-         {/* Soft ambient gradient orbs */}
-         <div className="absolute -top-20 -right-20 w-40 h-40 bg-indigo-200/10 rounded-full blur-3xl pointer-events-none" />
-         <div className="absolute -bottom-20 -left-20 w-40 h-40 bg-purple-200/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="px-4 pb-2">
+        <p className="text-xs font-medium" style={{ color: "rgba(255,255,255,0.75)" }}>{getGreeting()}</p>
+        <h2 className="text-2xl font-medium text-white tracking-tight font-mono">{time || "--:--"}</h2>
+        <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.75)" }}>
+          {new Date().toLocaleDateString(language === "ar" ? "ar-SA" : "en-US", { weekday: 'long', month: 'long', day: 'numeric' })}
+        </p>
+      </div>
 
-         {/* Greeting */}
-         <div className="text-left mb-3">
-           <p className="text-indigo-600 text-lg font-bold">{getGreeting()}!</p>
-           <h2 className="text-4xl font-bold text-gray-800 mt-0.5 tracking-tight font-mono">{time || "--:--"}</h2>
-           <p className="text-gray-500 text-xs mt-1">
-             {new Date().toLocaleDateString(language === "ar" ? "ar-SA" : "en-US", { weekday: 'long', month: 'long', day: 'numeric' })}
-           </p>
-         </div>
-
-         {/* Punch In/Out Times */}
-         {(isPunchedIn || hasTakenBreakToday) && (
-           <div className="mb-3 text-xs space-y-1">
-             {punchInTimeStr && (
-               <div className="flex items-center gap-1">
-                 <span className="text-green-600">?</span>
-                 <span className="text-gray-500">In:</span>
-                 <span className="font-medium text-gray-700">{punchInTimeStr}</span>
-               </div>
-             )}
-             {hasTakenBreakToday && (
-               <div className="flex gap-4">
-                 {breakOutTimeStr && (
-                   <div className="flex items-center gap-1">
-                     <span className="text-orange-600">?</span>
-                     <span className="text-gray-500">Break Out:</span>
-                     <span className="font-medium text-gray-700">{breakOutTimeStr}</span>
-                   </div>
-                 )}
-                 {breakInTimeStr && (
-                   <div className="flex items-center gap-1">
-                     <span className="text-blue-600">?</span>
-                     <span className="text-gray-500">Break In:</span>
-                     <span className="font-medium text-gray-700">{breakInTimeStr}</span>
-                   </div>
-                 )}
-               </div>
-             )}
-           </div>
-         )}
-
-         {/* Last Punch Out */}
-         {lastPunchOut && (
-           <div className="mb-3 text-xs">
-             <div className="text-gray-500">
-               <span>Last Punch Out: </span>
-               <span className="font-medium text-gray-700">{lastPunchOut.time}</span>
-               <span className="text-gray-400"> ({lastPunchOut.date})</span>
-             </div>
-           </div>
-         )}
-
-         {/* Current Status Pill */}
+       {/* Punch Card Container */}
          <motion.div
-           initial={{ opacity: 0, scale: 0.9, y: -10 }}
-           animate={{ opacity: 1, scale: 1, y: 0 }}
-           transition={{ delay: 0.05, duration: 0.3 }}
-           className="mb-5 flex justify-center"
+           initial={{ scale: 0.98, opacity: 0 }}
+           animate={{ scale: 1, opacity: 1 }}
+           transition={{ delay: 0.1, duration: 0.4 }}
+           className="mx-4 p-5 relative"
+           style={{
+             borderRadius: "22px",
+             background: "#EEF1F6",
+             boxShadow: "9px 9px 18px rgba(10,30,60,0.35), -6px -6px 14px rgba(255,255,255,0.5)",
+           }}
          >
-{!isPunchedIn && !completedToday && (
-              <div className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-green-50 to-emerald-50 rounded-full border border-green-200 shadow-md hover:shadow-lg transition-all">
-                <div className="w-5 h-5 rounded-full bg-green-500 flex items-center justify-center">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                  </svg>
-                </div>
-                <span className="text-sm font-bold text-green-700">Ready to Start</span>
+
+          {/* Current Status Pill */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9, y: -10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{ delay: 0.05, duration: 0.3 }}
+            className="flex justify-center mb-5"
+          >
+            {!isPunchedIn && !completedToday && (
+              <div className="inline-flex items-center gap-2 px-[18px] py-[9px] rounded-[30px]"
+                style={{ background: "#E3EFE0", boxShadow: "inset 3px 3px 6px #C8D6C4, inset -3px -3px 6px #FFFFFF" }}>
+                <div className="w-2 h-2 rounded-full bg-[#3B6D11]" />
+                <span className="text-sm font-medium text-[#3B6D11]">Ready to Start</span>
               </div>
             )}
-           {isPunchedIn && isOnBreak && (
-             <div className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-full border border-blue-200 shadow-md hover:shadow-lg transition-all">
-               <div className="w-5 h-5 rounded-full bg-blue-500 flex items-center justify-center">
-                 <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                 </svg>
-               </div>
-               <span className="text-sm font-bold text-blue-700">Break Time</span>
-             </div>
-           )}
-           {isPunchedIn && !isOnBreak && !hasTakenBreakToday && (
-             <div className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-emerald-50 to-teal-50 rounded-full border border-emerald-200 shadow-md hover:shadow-lg transition-all">
-               <div className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center">
-                 <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                   <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                 </svg>
-               </div>
-               <span className="text-sm font-bold text-emerald-700">Currently Working</span>
-             </div>
-           )}
-           {isPunchedIn && !isOnBreak && hasTakenBreakToday && (
-             <div className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-red-50 to-rose-50 rounded-full border border-red-200 shadow-md hover:shadow-lg transition-all">
-               <div className="w-5 h-5 rounded-full bg-red-500 flex items-center justify-center">
-                 <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                   <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                 </svg>
-               </div>
-               <span className="text-sm font-bold text-red-700">Ready to Checkout</span>
-             </div>
-           )}
-           {completedToday && (
-             <div className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-gray-50 to-slate-50 rounded-full border border-gray-200 shadow-md">
-               <div className="w-5 h-5 rounded-full bg-gray-400 flex items-center justify-center">
-                 <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                   <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                 </svg>
-               </div>
-               <span className="text-sm font-bold text-gray-600">Attendance complete</span>
-             </div>
-           )}
-         </motion.div>
+            {isPunchedIn && isOnBreak && (
+              <div className="inline-flex items-center gap-2 px-[18px] py-[9px] rounded-[30px]"
+                style={{ background: "#E0E8EF", boxShadow: "inset 3px 3px 6px #C4D0D8, inset -3px -3px 6px #FFFFFF" }}>
+                <div className="w-2 h-2 rounded-full bg-[#2B5F8A]" />
+                <span className="text-sm font-medium text-[#2B5F8A]">Break Time</span>
+              </div>
+            )}
+            {isPunchedIn && !isOnBreak && !hasTakenBreakToday && (
+              <div className="inline-flex items-center gap-2 px-[18px] py-[9px] rounded-[30px]"
+                style={{ background: "#E3EFE0", boxShadow: "inset 3px 3px 6px #C8D6C4, inset -3px -3px 6px #FFFFFF" }}>
+                <div className="w-2 h-2 rounded-full bg-[#3B6D11]" />
+                <span className="text-sm font-medium text-[#3B6D11]">Currently Working</span>
+              </div>
+            )}
+            {isPunchedIn && !isOnBreak && hasTakenBreakToday && (
+              <div className="inline-flex items-center gap-2 px-[18px] py-[9px] rounded-[30px]"
+                style={{ background: "#EFE0E0", boxShadow: "inset 3px 3px 6px #D8C4C4, inset -3px -3px 6px #FFFFFF" }}>
+                <div className="w-2 h-2 rounded-full bg-[#8A2B2B]" />
+                <span className="text-sm font-medium text-[#8A2B2B]">Ready to Checkout</span>
+              </div>
+            )}
+            {completedToday && (
+              <div className="inline-flex items-center gap-2 px-[18px] py-[9px] rounded-[30px]"
+                style={{ background: "#E3E5E8", boxShadow: "inset 3px 3px 6px #C8CBD0, inset -3px -3px 6px #FFFFFF" }}>
+                <div className="w-2 h-2 rounded-full bg-[#5A5D62]" />
+                <span className="text-sm font-medium text-[#5A5D62]">Attendance complete</span>
+              </div>
+            )}
+          </motion.div>
 
-         {/* Premium Action Cards - Vertical Stack */}
-         <motion.div
-           initial={{ opacity: 0, y: 10 }}
-           animate={{ opacity: 1, y: 0 }}
-           transition={{ delay: 0.15, duration: 0.4 }}
-           className="space-y-3"
->
+          {/* Stat Tiles - 2-column grid */}
+          <div className="grid grid-cols-2 gap-[10px] mb-5">
+            <div className="text-center py-[12px] px-3 rounded-[16px]"
+              style={{ background: "#EEF1F6", boxShadow: "inset 4px 4px 8px #C9CDD6, inset -4px -4px 8px #FFFFFF" }}>
+              <p className="text-[10px] text-[#8A8F9C] mb-1">Punch In</p>
+              <p className="text-[15px] font-medium text-[#2C2F36]" style={{ fontFamily: "monospace" }}>{punchInTimeStr || "--:--"}</p>
+            </div>
+            <div className="text-center py-[12px] px-3 rounded-[16px]"
+              style={{ background: "#EEF1F6", boxShadow: "inset 4px 4px 8px #C9CDD6, inset -4px -4px 8px #FFFFFF" }}>
+              <p className="text-[10px] text-[#8A8F9C] mb-1">Worked Time</p>
+              <p className="text-[15px] font-medium text-[#2C2F36]">{isPunchedIn ? "Active" : "00:00"}</p>
+            </div>
+          </div>
+
+          {/* Premium Action Cards - Vertical Stack */}
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.15, duration: 0.4 }}
+            className="space-y-3"
+          >
 {!completedToday && isPunchedIn && !isOnBreak && !hasTakenBreakToday ? (
               // Just punched in, show: Take a Break + Checkout cards
               <>
@@ -1109,40 +1072,35 @@ if (action === 'punch_in') {
                   initial={{ opacity: 0, x: -10 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: 0.2 }}
-                  className="relative group"
+                  className="rounded-[16px] p-[12px]"
+                  style={{ background: "#EEF1F6", boxShadow: "5px 5px 10px rgba(10,30,60,0.3), -4px -4px 10px rgba(255,255,255,0.4)" }}
                 >
-                  <div className="absolute inset-0 bg-orange-100 rounded-2xl blur-xl opacity-40 group-hover:opacity-60 transition-opacity" />
-                  <div className="relative bg-white rounded-2xl border border-orange-200 shadow-md hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300 overflow-hidden">
-                    {/* Card header */}
-                    <div className="p-4 pb-2">
-                      <div className="flex items-center gap-3">
-                        <div className="w-11 h-11 rounded-full bg-orange-100 flex items-center justify-center">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                          </svg>
-                        </div>
-                        <div>
-                          <h3 className="text-base font-bold text-gray-800">Take a Break</h3>
-                          <p className="text-xs text-gray-500">Pause your work session</p>
-                        </div>
-                      </div>
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
                     </div>
+                    <div>
+                      <h3 className="text-sm font-medium text-[#2C2F36]">Take a Break</h3>
+                      <p className="text-[10px] text-[#8A8F9C]">Pause your work session</p>
+                    </div>
+                  </div>
 
-                    {/* Slider */}
-                    <div className="px-4 pb-4">
-                      <PunchSlider
-                        isPunchedIn={isPunchedIn}
-                        isLoading={isLoading}
-                        onPunch={() => triggerPunch('break_out')}
-                        disabled={completedToday}
-                        isOnBreak={isOnBreak}
-                        hasTakenBreakToday={hasTakenBreakToday}
-                        customLabel={completedToday ? "Completed" : "Slide to confirm"}
-                        customColor="bg-orange-500"
-                        slideDirection="left"
-                        title=""
-                      />
-                    </div>
+                  {/* Slider */}
+                  <div>
+                    <PunchSlider
+                      isPunchedIn={isPunchedIn}
+                      isLoading={isLoading}
+                      onPunch={() => triggerPunch('break_out')}
+                      disabled={completedToday}
+                      isOnBreak={isOnBreak}
+                      hasTakenBreakToday={hasTakenBreakToday}
+                      customLabel={completedToday ? "Completed" : "Slide to confirm"}
+                      customColor="bg-orange-500"
+                      slideDirection="left"
+                      title=""
+                    />
                   </div>
                 </motion.div>
 
@@ -1151,40 +1109,35 @@ if (action === 'punch_in') {
                   initial={{ opacity: 0, x: -10 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: 0.3 }}
-                  className="relative group"
+                  className="rounded-[16px] p-[12px]"
+                  style={{ background: "#EEF1F6", boxShadow: "5px 5px 10px rgba(10,30,60,0.3), -4px -4px 10px rgba(255,255,255,0.4)" }}
                 >
-                  <div className="absolute inset-0 bg-red-100 rounded-2xl blur-xl opacity-40 group-hover:opacity-60 transition-opacity" />
-                  <div className="relative bg-white rounded-2xl border border-red-200 shadow-lg hover:shadow-2xl hover:-translate-y-0.5 transition-all duration-300 overflow-hidden">
-                    {/* Card header */}
-                    <div className="p-4 pb-2">
-                      <div className="flex items-center gap-3">
-                        <div className="w-11 h-11 rounded-full bg-red-100 flex items-center justify-center">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                          </svg>
-                        </div>
-                        <div>
-                          <h3 className="text-base font-bold text-gray-800">Checkout</h3>
-                          <p className="text-xs text-gray-500">End today's work session</p>
-                        </div>
-                      </div>
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                      </svg>
                     </div>
+                    <div>
+                      <h3 className="text-sm font-medium text-[#2C2F36]">Checkout</h3>
+                      <p className="text-[10px] text-[#8A8F9C]">End today's work session</p>
+                    </div>
+                  </div>
 
-                    {/* Slider */}
-                    <div className="px-4 pb-4">
-                      <PunchSlider
-                        isPunchedIn={isPunchedIn}
-                        isLoading={isLoading}
-                        onPunch={() => triggerPunch('punch_out')}
-                        disabled={completedToday}
-                        isOnBreak={isOnBreak}
-                        hasTakenBreakToday={hasTakenBreakToday}
-                        customLabel={completedToday ? "Completed" : "Slide to confirm"}
-                        customColor="bg-red-500"
-                        slideDirection="left"
-                        title=""
-                      />
-                    </div>
+                  {/* Slider */}
+                  <div>
+                    <PunchSlider
+                      isPunchedIn={isPunchedIn}
+                      isLoading={isLoading}
+                      onPunch={() => triggerPunch('punch_out')}
+                      disabled={completedToday}
+                      isOnBreak={isOnBreak}
+                      hasTakenBreakToday={hasTakenBreakToday}
+                      customLabel={completedToday ? "Completed" : "Slide to confirm"}
+                      customColor="bg-red-500"
+                      slideDirection="left"
+                      title=""
+                    />
                   </div>
                 </motion.div>
               </>
@@ -1194,53 +1147,33 @@ if (action === 'punch_in') {
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.2 }}
-                className="relative group"
+                className="rounded-[16px] p-[12px]"
+                style={{ background: "#EEF1F6", boxShadow: "5px 5px 10px rgba(10,30,60,0.3), -4px -4px 10px rgba(255,255,255,0.4)" }}
               >
-                <div
-                  className={`
-                    absolute inset-0 rounded-2xl blur-xl opacity-40 group-hover:opacity-60 transition-opacity
-                    bg-blue-100
-                  `}
-                />
-                <div className={`
-                  relative bg-white rounded-2xl border shadow-md hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300 overflow-hidden
-                  border-blue-200
-                `}>
-                  {/* Card header */}
-                  <div className="p-4 pb-2">
-                    <div className="flex items-center gap-3">
-                      <div className={`
-                        w-11 h-11 rounded-full flex items-center justify-center
-                        bg-blue-100 text-blue-600
-                      `}>
-                        <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                        </svg>
-                      </div>
-                      <div>
-                        <h3 className="text-base font-bold text-gray-800">
-                          Resume Work
-                        </h3>
-                        <p className="text-xs text-gray-500">
-                          Return from break
-                        </p>
-                      </div>
-                    </div>
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
                   </div>
+                  <div>
+                    <h3 className="text-sm font-medium text-[#2C2F36]">Resume Work</h3>
+                    <p className="text-[10px] text-[#8A8F9C]">Return from break</p>
+                  </div>
+                </div>
 
-                  {/* Slider */}
-                  <div className="px-4 pb-4">
-                    <PunchSlider
-                      isPunchedIn={isPunchedIn}
-                      isLoading={isLoading}
-                      onPunch={() => triggerPunch('break_in')}
-                      disabled={completedToday}
-                      isOnBreak={isOnBreak}
-                      hasTakenBreakToday={hasTakenBreakToday}
-                      customLabel={completedToday ? "Completed" : "Slide to confirm"}
-                      title=""
-                    />
-                  </div>
+                {/* Slider */}
+                <div>
+                  <PunchSlider
+                    isPunchedIn={isPunchedIn}
+                    isLoading={isLoading}
+                    onPunch={() => triggerPunch('break_in')}
+                    disabled={completedToday}
+                    isOnBreak={isOnBreak}
+                    hasTakenBreakToday={hasTakenBreakToday}
+                    customLabel={completedToday ? "Completed" : "Slide to confirm"}
+                    title=""
+                  />
                 </div>
               </motion.div>
 ) : hasTakenBreakToday && !completedToday ? (
@@ -1249,55 +1182,35 @@ if (action === 'punch_in') {
                  initial={{ opacity: 0, y: 10 }}
                  animate={{ opacity: 1, y: 0 }}
                  transition={{ delay: 0.2 }}
-                 className="relative group"
+                 className="rounded-[16px] p-[12px]"
+                 style={{ background: "#EEF1F6", boxShadow: "5px 5px 10px rgba(10,30,60,0.3), -4px -4px 10px rgba(255,255,255,0.4)" }}
                >
-                 <div
-                   className={`
-                     absolute inset-0 rounded-2xl blur-xl opacity-40 group-hover:opacity-60 transition-opacity
-                     bg-red-100
-                   `}
-                 />
-                 <div className={`
-                   relative bg-white rounded-2xl border shadow-md hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300 overflow-hidden
-                   border-red-200
-                 `}>
-                   {/* Card header */}
-                   <div className="p-4 pb-2">
-                     <div className="flex items-center gap-3">
-                       <div className={`
-                         w-11 h-11 rounded-full flex items-center justify-center
-                         bg-red-100 text-red-600
-                       `}>
-                         <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                           <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                         </svg>
-                       </div>
-                       <div>
-                         <h3 className="text-base font-bold text-gray-800">
-                           Checkout
-                         </h3>
-                         <p className="text-xs text-gray-500">
-                           End your work session
-                         </p>
-                       </div>
-                     </div>
+                 <div className="flex items-center gap-3 mb-2">
+                   <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+                     <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                       <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                     </svg>
                    </div>
+                   <div>
+                     <h3 className="text-sm font-medium text-[#2C2F36]">Checkout</h3>
+                     <p className="text-[10px] text-[#8A8F9C]">End your work session</p>
+                   </div>
+                 </div>
 
-                   {/* Slider */}
-                   <div className="px-4 pb-4">
-                     <PunchSlider
-                       isPunchedIn={isPunchedIn}
-                       isLoading={isLoading}
-                       onPunch={() => triggerPunch('punch_out')}
-                       disabled={completedToday}
-                       isOnBreak={isOnBreak}
-                       hasTakenBreakToday={hasTakenBreakToday}
-                       customLabel={completedToday ? "Completed" : "Slide to confirm"}
-                       customColor="bg-red-500"
-                       slideDirection="left"
-                       title=""
-                     />
-                   </div>
+                 {/* Slider */}
+                 <div>
+                   <PunchSlider
+                     isPunchedIn={isPunchedIn}
+                     isLoading={isLoading}
+                     onPunch={() => triggerPunch('punch_out')}
+                     disabled={completedToday}
+                     isOnBreak={isOnBreak}
+                     hasTakenBreakToday={hasTakenBreakToday}
+                     customLabel={completedToday ? "Completed" : "Slide to confirm"}
+                     customColor="bg-red-500"
+                     slideDirection="left"
+                     title=""
+                   />
                  </div>
                </motion.div>
              ) : completedToday ? (
@@ -1306,101 +1219,75 @@ if (action === 'punch_in') {
                  initial={{ opacity: 0, y: 10 }}
                  animate={{ opacity: 1, y: 0 }}
                  transition={{ delay: 0.2 }}
-                 className="relative group"
+                 className="rounded-[16px] p-[12px]"
+                 style={{ background: "#EEF1F6", boxShadow: "5px 5px 10px rgba(10,30,60,0.3), -4px -4px 10px rgba(255,255,255,0.4)" }}
                >
-                 <div
-                   className={`
-                     absolute inset-0 rounded-2xl blur-xl opacity-40 group-hover:opacity-60 transition-opacity
-                     bg-gray-100
-                   `}
-                 />
-                 <div className={`
-                   relative bg-white rounded-2xl border shadow-md transition-all duration-300 overflow-hidden
-                   border-gray-200
-                 `}>
-                   <div className="p-4 text-center">
-                     <div className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-gray-50 to-slate-50 rounded-full border border-gray-200">
-                       <div className="w-5 h-5 rounded-full bg-gray-400 flex items-center justify-center">
-                         <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                           <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                         </svg>
-                       </div>
-                       <span className="text-sm font-bold text-gray-600">Completed</span>
-                     </div>
+                 <div className="flex items-center justify-center gap-2 py-2">
+                   <div className="w-5 h-5 rounded-full bg-[#5A5D62] flex items-center justify-center">
+                     <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                       <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                     </svg>
                    </div>
+                   <span className="text-sm font-medium text-[#5A5D62]">Completed</span>
                  </div>
                </motion.div>
              ) : (
-             // Single card flow: Punch In / Break In / Punch Out
-             <motion.div
-               initial={{ opacity: 0, y: 10 }}
-               animate={{ opacity: 1, y: 0 }}
-               transition={{ delay: 0.2 }}
-               className="relative group"
-             >
-               <div
-                 className={`
-                   absolute inset-0 rounded-2xl blur-xl opacity-40 group-hover:opacity-60 transition-opacity
-                   ${!isPunchedIn ? 'bg-green-100' : isOnBreak ? 'bg-blue-100' : 'bg-red-100'}
-                 `}
-               />
-               <div className={`
-                 relative bg-white rounded-2xl border shadow-md hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300 overflow-hidden
-                 ${!isPunchedIn ? 'border-green-200' : isOnBreak ? 'border-blue-200' : 'border-red-200'}
-               `}>
-                 {/* Card header */}
-                 <div className="p-4 pb-2">
-                   <div className="flex items-center gap-3">
-                     <div className={`
-                       w-11 h-11 rounded-full flex items-center justify-center
-                       ${!isPunchedIn ? 'bg-green-100 text-green-600' : isOnBreak ? 'bg-blue-100 text-blue-600' : 'bg-red-100 text-red-600'}
-                     `}>
-                       {!isPunchedIn ? (
-                         <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                           <path strokeLinecap="round" strokeLinejoin="round" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
-                         </svg>
-                       ) : isOnBreak ? (
-                         <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                           <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                         </svg>
-                       ) : (
-                         <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                           <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                         </svg>
-                       )}
-                     </div>
-                     <div>
-                       <h3 className="text-base font-bold text-gray-800">
-                         {!isPunchedIn ? 'Punch In' : isOnBreak ? 'Resume Work' : 'Checkout'}
-                       </h3>
-                       <p className="text-xs text-gray-500">
-                         {!isPunchedIn ? 'Start your work day' : isOnBreak ? 'Return from break' : 'End work session'}
-                       </p>
-                     </div>
-                   </div>
-                 </div>
-
-{/* Slider */}
-                  <div className="px-4 pb-4">
-                    <PunchSlider
-                      isPunchedIn={isPunchedIn}
-                      isLoading={isLoading}
-                      onPunch={() => {
-                        const action = getAutoAction();
-                        if (action) return triggerPunch(action);
-                        return Promise.resolve();
-                      }}
-                      disabled={completedToday}
-                      isOnBreak={isOnBreak}
-                      hasTakenBreakToday={hasTakenBreakToday}
-                      customLabel={completedToday ? "Completed" : "Slide to confirm"}
-                      title=""
-                    />
+              // Single card flow: Punch In / Break In / Punch Out
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+                className="rounded-[16px] p-[12px]"
+                style={{ background: "#EEF1F6", boxShadow: "5px 5px 10px rgba(10,30,60,0.3), -4px -4px 10px rgba(255,255,255,0.4)" }}
+              >
+                <div className="flex items-center gap-3 mb-2">
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                    !isPunchedIn ? 'bg-green-100 text-green-600' : isOnBreak ? 'bg-blue-100 text-blue-600' : 'bg-red-100 text-red-600'
+                  }`}>
+                    {!isPunchedIn ? (
+                      <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+                      </svg>
+                    ) : isOnBreak ? (
+                      <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                      </svg>
+                    ) : (
+                      <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                      </svg>
+                    )}
                   </div>
-               </div>
-             </motion.div>
-           )}
-         </motion.div>
+                  <div>
+                    <h3 className="text-sm font-medium text-[#2C2F36]">
+                      {!isPunchedIn ? 'Punch In' : isOnBreak ? 'Resume Work' : 'Checkout'}
+                    </h3>
+                      <p className="text-[10px] text-[#8A8F9C]">
+                      {!isPunchedIn ? 'Start your work day' : isOnBreak ? 'Return from break' : 'End work session'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Slider */}
+                <div>
+                  <PunchSlider
+                    isPunchedIn={isPunchedIn}
+                    isLoading={isLoading}
+                    onPunch={() => {
+                      const action = getAutoAction();
+                      if (action) return triggerPunch(action);
+                      return Promise.resolve();
+                    }}
+                    disabled={completedToday}
+                    isOnBreak={isOnBreak}
+                    hasTakenBreakToday={hasTakenBreakToday}
+                    customLabel={completedToday ? "Completed" : "Slide to confirm"}
+                    title=""
+                  />
+                </div>
+              </motion.div>
+            )}
+          </motion.div>
 
          {/* Face Scan + Action Buttons Row */}
          {/* <div className="flex items-start gap-3 mt-4"> */}
@@ -1434,26 +1321,26 @@ if (action === 'punch_in') {
             {/* <div className="flex-shrink-0 w-14 h-14" aria-hidden="true" /> */}
          {/* </div> */}
 
-         {/* Live Location */}
-         <div className="mt-3 p-2 bg-gray-50 rounded-lg flex items-center justify-between text-xs">
-           <div className="flex items-center gap-1">
-             <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-red-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-             <span className="text-gray-500">{locationStatus}</span>
-           </div>
-           {currentLocation && (
-              <button
-                onClick={() => {
-                  fetchLocation();
-                }}
-                className="text-indigo-600 font-medium"
-              >
-                Refresh
-              </button>
-           )}
-         </div>
-       </motion.div>
+          {/* Live Location */}
+          <div className="mt-3 p-2 bg-gray-50 rounded-lg flex items-center justify-between text-xs">
+            <div className="flex items-center gap-1">
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-red-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+              <span className="text-gray-500">{locationStatus}</span>
+            </div>
+            {currentLocation && (
+               <button
+                 onClick={() => {
+                   fetchLocation();
+                 }}
+                 className="text-indigo-600 font-medium"
+               >
+                 Refresh
+               </button>
+            )}
+          </div>
+        </motion.div>
 
-        {/* Face Biometric Modal - Feature commented out */}
+         {/* Face Biometric Modal - Feature commented out */}
         {/* {showDevModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <div
@@ -1505,56 +1392,64 @@ if (action === 'punch_in') {
           </div>
          )} */}
 
-       {/* Quick Access - 8 modules */}
-       <div className="px-4">
-         <div className="grid grid-cols-4 gap-2">
-           {quickAccessItems.map((item, index) => (
-             <motion.div
-               key={item.label}
-               whileHover={{ scale: 1.02 }}
-               whileTap={{ scale: 0.98 }}
-               onClick={() => navigate(item.path)}
-               initial={{ opacity: 0, y: 20 }}
-               animate={{ opacity: 1, y: 0 }}
-               transition={{ delay: index * 0.05 }}
-               className={`rounded-xl p-3 cursor-pointer shadow-sm hover:shadow-md transition-all flex flex-col items-center justify-center text-center bg-white`}
-             >
-               <div className="mb-1 text-indigo-600">{item.icon}</div>
-               <span className="text-xs text-gray-700">{item.label}</span>
-             </motion.div>
-           ))}
-         </div>
-       </div>
+        {/* Quick Access - 8 modules */}
+        <div className="px-4">
+          <p className="text-xs font-medium mb-2" style={{ color: "rgba(255,255,255,0.85)" }}>Quick Access</p>
+          <div className="grid grid-cols-4 gap-[10px]">
+            {quickAccessItems.map((item, index) => (
+              <motion.div
+                key={item.label}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => navigate(item.path)}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.05 }}
+                className="rounded-[16px] py-[12px] px-1 cursor-pointer flex flex-col items-center justify-center text-center"
+                style={{ background: "#EEF1F6", boxShadow: "5px 5px 10px rgba(10,30,60,0.3), -4px -4px 10px rgba(255,255,255,0.4)" }}
+              >
+                <div className="mb-[5px]" style={{ color: "#5A5F6B" }}>{item.icon}</div>
+                <span className="text-[10px] text-[#5A5F6B]">{item.label}</span>
+              </motion.div>
+            ))}
+          </div>
+        </div>
 
-       {/* Upcoming Events */}
-       <div className="px-4">
-         <div className={`${getPageCardStyle(theme)} p-4`}>
-           <h3 className="text-lg font-semibold mb-4 text-gray-800">{t("upcomingEvents")}</h3>
-           <div className="space-y-3">
-             <div className="flex items-center gap-3 p-3 bg-amber-50 rounded-xl">
-               <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-amber-600"><svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-8a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8"/><path d="M4 16s.5-1 2-1 2.5 2 4 2 2.5-2 4-2 2.5 2 4 2 2-1 2-1"/><path d="M2 21h20"/><path d="M7 8v2"/><path d="M12 8v2"/><path d="M17 8v2"/><path d="M7 4h.01"/><path d="M12 4h.01"/><path d="M17 4h.01"/></svg></div>
-               <div className="flex-1">
-                 <p className="font-medium text-gray-800">{t("ahmedBirthday")}</p>
-                 <p className="text-xs text-gray-500">Feb 28</p>
-               </div>
-             </div>
-             <div className="flex items-center gap-3 p-3 bg-pink-50 rounded-xl">
-               <div className="w-8 h-8 rounded-full bg-pink-100 flex items-center justify-center text-pink-600"><svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></div>
-               <div className="flex-1">
-                 <p className="font-medium text-gray-800">{t("workAnniversaryText")}</p>
-                 <p className="text-xs text-gray-500">Mar 1</p>
-               </div>
-             </div>
-             <div className="flex items-center gap-3 p-3 bg-green-50 rounded-xl">
-               <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center text-green-600"><svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></div>
-               <div className="flex-1">
-                 <p className="font-medium text-gray-800">{t("nationalDayText")}</p>
-                 <p className="text-xs text-gray-500">Sep 23</p>
-               </div>
-             </div>
-           </div>
-         </div>
-       </div>
+        {/* Upcoming Events */}
+        <div className="px-4">
+          <div className="p-[14px]"
+            style={{
+              borderRadius: "20px",
+              background: "#EEF1F6",
+              boxShadow: "6px 6px 12px rgba(10,30,60,0.3), -5px -5px 12px rgba(255,255,255,0.4)",
+            }}
+          >
+            <h3 className="text-[13px] font-medium text-[#33363D] mb-3">{t("upcomingEvents")}</h3>
+            <div className="space-y-0">
+              {[
+                { title: t("ahmedBirthday"), date: "Feb 28", bg: "bg-amber-100", text: "text-amber-600", iconBg: "#FEF3C7", iconColor: "#D97706" },
+                { title: t("workAnniversaryText"), date: "Mar 1", bg: "bg-pink-100", text: "text-pink-600", iconBg: "#FCE7F3", iconColor: "#DB2777" },
+                { title: t("nationalDayText"), date: "Sep 23", bg: "bg-green-100", text: "text-green-600", iconBg: "#D1FAE5", iconColor: "#059669" },
+              ].map((event, i, arr) => (
+                <div key={i}>
+                  {i > 0 && <div className="border-t border-[#E1E4EA]" />}
+                  <div className="flex items-center gap-3 py-[10px]">
+                    <div className="w-8 h-8 rounded-[8px] flex items-center justify-center flex-shrink-0"
+                      style={{ background: event.iconBg }}>
+                      {i === 0 && <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" style={{ color: event.iconColor }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-8a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8"/><path d="M4 16s.5-1 2-1 2.5 2 4 2 2.5-2 4-2 2.5 2 4 2 2-1 2-1"/><path d="M2 21h20"/><path d="M7 8v2"/><path d="M12 8v2"/><path d="M17 8v2"/><path d="M7 4h.01"/><path d="M12 4h.01"/><path d="M17 4h.01"/></svg>}
+                      {i === 1 && <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" style={{ color: event.iconColor }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>}
+                      {i === 2 && <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" style={{ color: event.iconColor }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[13px] text-[#33363D] truncate">{event.title}</p>
+                      <p className="text-[11px] text-[#8A8F9C]">{event.date}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
       </div>
     );
   }

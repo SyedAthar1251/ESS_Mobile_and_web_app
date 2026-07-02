@@ -4,7 +4,9 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../auth/useAuth";
 import { useLanguage } from "../../i18n/LanguageContext";
 import { useTheme } from "../../store/ThemeContext";
+import { hasHRRole, hasAdminManagerRole } from "../../services/userRole.service";
 import LanguageSwitcher from "../../components/LanguageSwitcher";
+import AlphaXLogo from "../../components/AlphaXLogo";
 import { forgotPassword, ForgotPasswordRequest } from "../../services/auth.service";
 
 // Error type for categorized error handling
@@ -119,6 +121,7 @@ const LoginPage = () => {
   });
   const [localError, setLocalError] = useState<ErrorInfo | null>(null);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [showGuestModal, setShowGuestModal] = useState(false);
   const [fpCompanyUrl, setFpCompanyUrl] = useState("");
   const [fpUserIdOrEmail, setFpUserIdOrEmail] = useState("");
   const [fpLoading, setFpLoading] = useState(false);
@@ -136,23 +139,23 @@ const LoginPage = () => {
   // Check if light theme (for white text on certain elements)
   const isLightTheme = theme === "light";
 
-  const handleLogin = async () => {
+  const performLogin = async (creds: { companyUrl: string; userId: string; password: string }) => {
     // Validate inputs
-    if (!companyUrl.trim()) {
+    if (!creds.companyUrl.trim()) {
       setLocalError({
         message: t('errorCompanyUrlRequired'),
         type: 'validation'
       });
       return;
     }
-    if (!userId.trim()) {
+    if (!creds.userId.trim()) {
       setLocalError({
         message: t('errorUserIdRequired'),
         type: 'validation'
       });
       return;
     }
-    if (!password.trim()) {
+    if (!creds.password.trim()) {
       setLocalError({
         message: t('errorPasswordRequired'),
         type: 'validation'
@@ -166,8 +169,8 @@ const LoginPage = () => {
     // Handle Remember Me
     if (rememberMe) {
       localStorage.setItem("ess_remember_me", "true");
-      localStorage.setItem("ess_remember_company", companyUrl);
-      localStorage.setItem("ess_remember_user", userId);
+      localStorage.setItem("ess_remember_company", creds.companyUrl);
+      localStorage.setItem("ess_remember_user", creds.userId);
     } else {
       localStorage.removeItem("ess_remember_me");
       localStorage.removeItem("ess_remember_company");
@@ -176,15 +179,28 @@ const LoginPage = () => {
 
     try {
       console.log("[LoginPage] Calling login API...");
-      await login({ companyUrl, userId, password });
+      await login(creds);
       const loggedInUser = JSON.parse(localStorage.getItem("ess_user") || "{}");
-      const userType = loggedInUser.userType || "employee";
-      console.log("[LoginPage] Login successful, user_type:", userType);
-      if (userType === "admin") {
-        console.log("[LoginPage] Admin user detected, redirecting to admin panel...");
-        navigate("/admin", { replace: true });
+      const roles: string[] = loggedInUser.roles || [];
+      const isCompanyAdmin: boolean = loggedInUser.isCompanyAdmin || false;
+      console.log("[LoginPage] Login successful, roles:", roles, "isCompanyAdmin:", isCompanyAdmin);
+
+      if (roles.length === 0) {
+        console.log("[LoginPage] No roles found, redirecting to dashboard...");
+        navigate("/dashboard", { replace: true });
+      } else if (hasHRRole(roles)) {
+        console.log("[LoginPage] HR role detected, redirecting to dashboard...");
+        navigate("/dashboard", { replace: true });
+      } else if (hasAdminManagerRole(roles)) {
+        if (isCompanyAdmin) {
+          console.log("[LoginPage] ESS Admin Manager with Company Admin role, redirecting to admin panel...");
+          navigate("/admin", { replace: true });
+        } else {
+          console.log("[LoginPage] ESS Admin Manager without Company Admin role, redirecting to dashboard...");
+          navigate("/dashboard", { replace: true });
+        }
       } else {
-        console.log("[LoginPage] User detected, redirecting to dashboard...");
+        console.log("[LoginPage] Generic employee role, redirecting to dashboard...");
         navigate("/dashboard", { replace: true });
       }
     } catch (err: any) {
@@ -193,6 +209,21 @@ const LoginPage = () => {
       const parsedError = parseError(err.message);
       setLocalError(parsedError);
     }
+  };
+
+  const handleLogin = async () => {
+    await performLogin({ companyUrl, userId, password });
+  };
+
+  const handleGuestLogin = (type: 'employee' | 'hr') => {
+    const url = "https://testcomp.frappe.cloud/";
+    const id = type === 'employee' ? "Testemployee@gmail.com" : "Testhr@gmail.com";
+    const pwd = "Test@1234";
+    setCompanyUrl(url);
+    setUserId(id);
+    setPassword(pwd);
+    setShowGuestModal(false);
+    performLogin({ companyUrl: url, userId: id, password: pwd });
   };
 
   const handleForgotPassword = async () => {
@@ -336,12 +367,7 @@ const LoginPage = () => {
 
         {/* Logo */}
         <div className="flex justify-center mb-4">
-          <div 
-            className="h-14 w-14 rounded-2xl text-white flex items-center justify-center font-bold text-xl shadow-lg"
-            style={{ backgroundColor: themeColors.primary }}
-          >
-            ESS
-          </div>
+          <AlphaXLogo size={56} />
         </div>
 
         {/* Greeting */}
@@ -559,6 +585,16 @@ const LoginPage = () => {
             </div>
           </div>
         )}
+        {/* Guest Login Button */}
+        <div className="mt-4 text-center">
+          <button
+            onClick={() => setShowGuestModal(true)}
+            className="text-sm text-white/80 hover:text-white underline underline-offset-4"
+          >
+            Login as Guest User
+          </button>
+        </div>
+
         {/* Forgot Password Modal */}
         <AnimatePresence>
           {showForgotPassword && (
@@ -630,6 +666,51 @@ const LoginPage = () => {
                       )}
                     </button>
                   </div>
+                </div>
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>
+        {/* Guest Login Modal */}
+        <AnimatePresence>
+          {showGuestModal && (
+            <>
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 bg-black/50 z-50"
+                onClick={() => setShowGuestModal(false)}
+              />
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="fixed inset-0 z-50 flex items-center justify-center p-4"
+              >
+                <div className="w-full max-w-sm rounded-2xl p-6 shadow-2xl bg-white">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Guest Login</h3>
+                  <p className="text-sm text-gray-500 mb-4">Select a guest user to login:</p>
+                  <div className="flex flex-col gap-3">
+                    <button
+                      onClick={() => handleGuestLogin('employee')}
+                      className="w-full py-2.5 rounded-xl border border-gray-300 text-gray-700 font-medium text-sm hover:bg-gray-50"
+                    >
+                      Login as Test Employee
+                    </button>
+                    <button
+                      onClick={() => handleGuestLogin('hr')}
+                      className="w-full py-2.5 rounded-xl border border-gray-300 text-gray-700 font-medium text-sm hover:bg-gray-50"
+                    >
+                      Login as Test HR Employee
+                    </button>
+                  </div>
+                  <button
+                    onClick={() => setShowGuestModal(false)}
+                    className="mt-4 w-full py-2 rounded-xl text-gray-600 font-medium text-sm hover:bg-gray-100"
+                  >
+                    Cancel
+                  </button>
                 </div>
               </motion.div>
             </>

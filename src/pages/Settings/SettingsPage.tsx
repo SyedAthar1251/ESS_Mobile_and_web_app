@@ -69,113 +69,158 @@ const SettingsPage = () => {
   const isRTL = language === "ar";
 
   return (
-    <div className={EMPLOYEE_PAGE_CONTAINER}>
-      {/* Header */}
-      <div className="space-y-4">
-        <h1 className="text-xl font-bold" style={{ color: themeColors.text }}>
-          {isRTL ? "الإعدادات" : "Settings"}
-        </h1>
-        <p style={{ color: themeColors.textSecondary }}>
-          {isRTL ? "إدارة مظهر التطبيق" : "Manage app appearance"}
-        </p>
-      </div>
+    <div className="pb-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        {/* Left Column - Settings Content */}
+        <div className="lg:col-span-2 space-y-4">
+          {/* Header */}
+          <div className="space-y-1">
+            <h1 className="text-xl font-bold" style={{ color: themeColors.text }}>
+              {isRTL ? "الإعدادات" : "Settings"}
+            </h1>
+          </div>
 
-      {/* Theme Section */}
-      <div 
-        className={`${getPageCardStyle(theme)} p-5`}
-        style={theme !== 'neon-green' ? { backgroundColor: themeColors.backgroundSecondary } : {}}
-      >
-        <ThemeSelector />
-      </div>
+          {/* Clay Card - Theme + Contact + Learn More */}
+          <div className="rounded-[22px] p-5" style={{
+            background: "#EEF1F6",
+            boxShadow: "9px 9px 18px rgba(10,30,60,0.35), -6px -6px 14px rgba(255,255,255,0.5)",
+          }}>
+            {/* Theme Section */}
+            <div className="pb-5 border-t border-[#E1E4EA]">
+              <div className="pt-5">
+                <ThemeSelector />
+              </div>
+            </div>
 
-      {/* Contact Us Section */}
-      <div 
-        className={`${getPageCardStyle(theme)} p-5`}
-        style={theme !== 'neon-green' ? { backgroundColor: themeColors.backgroundSecondary } : {}}
-      >
-        <h2 className="text-lg font-semibold mb-4" style={{ color: themeColors.text }}>
-          {isRTL ? "اتصل بنا" : "Contact Us"}
-        </h2>
-        <div className="space-y-3">
-          <div className="flex items-center gap-3">
-            <span className="text-xl">📧</span>
-            <div>
-              <p className="font-medium" style={{ color: themeColors.text }}>Email</p>
-              <p style={{ color: themeColors.textSecondary }}>support@alphax.com</p>
+            {/* Contact Us Section */}
+            <div className="py-5 border-t border-[#E1E4EA]">
+              <h2 className="text-[13px] font-medium mb-4" style={{ color: themeColors.text }}>
+                {isRTL ? "اتصل بنا" : "Contact Us"}
+              </h2>
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-[10px] flex items-center justify-center" style={{ background: "#E1E4EA" }}>
+                    <span className="text-sm">📧</span>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium" style={{ color: themeColors.text }}>Email</p>
+                    <p className="text-sm" style={{ color: themeColors.textSecondary }}>support@alphax.com</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-[10px] flex items-center justify-center" style={{ background: "#E1E4EA" }}>
+                    <span className="text-sm">📞</span>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium" style={{ color: themeColors.text }}>Phone</p>
+                    <p className="text-sm" style={{ color: themeColors.textSecondary }}>+971 4 123 4567</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-[10px] flex items-center justify-center" style={{ background: "#E1E4EA" }}>
+                    <span className="text-sm">🌐</span>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium" style={{ color: themeColors.text }}>Website</p>
+                    <p className="text-sm" style={{ color: themeColors.textSecondary }}>www.alphax.com</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-[10px] flex items-center justify-center" style={{ background: "#E1E4EA" }}>
+                    <span className="text-sm">📍</span>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium" style={{ color: themeColors.text }}>Address</p>
+                    <p className="text-sm" style={{ color: themeColors.textSecondary }}>
+                      {isRTL ? "دبي، الإمارات العربية المتحدة" : "Dubai, UAE"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Learn More Section */}
+            <div className="pt-5">
+              <h2 className="text-[13px] font-medium mb-3" style={{ color: themeColors.text }}>
+                {isRTL ? "اعرف المزيد" : "Learn More"}
+              </h2>
+              <div className="space-y-2">
+                {Object.entries(learnMoreContent).map(([key, item]) => (
+                  <div key={key}>
+                    <button
+                      onClick={() => setShowContent(showContent === key ? null : key)}
+                      className="w-full flex items-center justify-between p-3 rounded-[12px] transition-colors"
+                      style={{
+                        color: themeColors.text,
+                        background: showContent === key ? "#E1E4EA" : "transparent",
+                      }}
+                    >
+                      <span className="text-sm font-medium">{item.title[language as keyof typeof item.title]}</span>
+                      <span className={`text-xs transition-transform ${showContent === key ? 'rotate-180' : ''}`}>
+                        ▼
+                      </span>
+                    </button>
+
+                    {/* Expandable Content */}
+                    {showContent === key && (
+                      <div
+                        className="mt-2 p-4 rounded-[12px]"
+                        style={{
+                          color: themeColors.textSecondary,
+                          background: "#E1E4EA",
+                        }}
+                      >
+                        <pre className="whitespace-pre-wrap text-sm font-normal">
+                          {item.content[language as keyof typeof item.content]}
+                        </pre>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <span className="text-xl">📞</span>
-            <div>
-              <p className="font-medium" style={{ color: themeColors.text }}>Phone</p>
-              <p style={{ color: themeColors.textSecondary }}>+971 4 123 4567</p>
-            </div>
+
+          {/* Mobile Version Footer */}
+          <div className="lg:hidden text-center py-4">
+            <p style={{ color: themeColors.textSecondary }} className="text-sm">
+              {isRTL ? "الإصدار" : "Version"} 1.0.0
+            </p>
+            <p style={{ color: themeColors.textSecondary }} className="text-xs mt-1">
+              © 2026 Alphax. {isRTL ? "جميع الحقوق محفوظة" : "All rights reserved."}
+            </p>
           </div>
-          <div className="flex items-center gap-3">
-            <span className="text-xl">🌐</span>
-            <div>
-              <p className="font-medium" style={{ color: themeColors.text }}>Website</p>
-              <p style={{ color: themeColors.textSecondary }}>www.alphax.com</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="text-xl">📍</span>
-            <div>
-              <p className="font-medium" style={{ color: themeColors.text }}>Address</p>
-              <p style={{ color: themeColors.textSecondary }}>
-                {isRTL ? "دبي، الإمارات العربية المتحدة" : "Dubai, UAE"}
+        </div>
+
+        {/* Right Column - Glass Panel (desktop only) */}
+        <div className="hidden lg:block">
+          <div className="sticky top-20 rounded-[20px] p-5" style={{
+            background: "rgba(255,255,255,0.15)",
+            backdropFilter: "blur(20px)",
+            WebkitBackdropFilter: "blur(20px)",
+            border: "1px solid rgba(255,255,255,0.25)",
+          }}>
+            <div className="text-center">
+              <h3 className="text-sm font-medium mb-3" style={{ color: themeColors.text }}>
+                {isRTL ? "معلومات التطبيق" : "App Info"}
+              </h3>
+              <div className="w-12 h-12 mx-auto mb-3 rounded-xl flex items-center justify-center" style={{ background: themeColors.primary }}>
+                <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 002 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                </svg>
+              </div>
+              <p style={{ color: themeColors.textSecondary }} className="text-xs">
+                {isRTL ? "الإصدار" : "Version"} 1.0.0
+              </p>
+              <p style={{ color: themeColors.textSecondary }} className="text-[10px] mt-1">
+                © 2026 Alphax
+              </p>
+              <p style={{ color: themeColors.textSecondary }} className="text-[10px]">
+                {isRTL ? "جميع الحقوق محفوظة" : "All rights reserved."}
               </p>
             </div>
           </div>
         </div>
-      </div>
-
-      {/* Learn More Section */}
-      <div 
-        className={`${getPageCardStyle(theme)} p-5`}
-        style={theme !== 'neon-green' ? { backgroundColor: themeColors.backgroundSecondary } : {}}
-      >
-        <h2 className="text-lg font-semibold mb-4" style={{ color: themeColors.text }}>
-          {isRTL ? "اعرف المزيد" : "Learn More"}
-        </h2>
-        <div className="space-y-2">
-          {Object.entries(learnMoreContent).map(([key, item]) => (
-            <div key={key}>
-              <button
-                onClick={() => setShowContent(showContent === key ? null : key)}
-                className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                style={{ color: themeColors.text }}
-              >
-                <span className="font-medium">{item.title[language as keyof typeof item.title]}</span>
-                <span className={`transform transition-transform ${showContent === key ? 'rotate-180' : ''}`}>
-                  ▼
-                </span>
-              </button>
-              
-              {/* Expandable Content */}
-              {showContent === key && (
-                <div 
-                  className="mt-2 p-4 rounded-xl bg-gray-50 dark:bg-gray-800"
-                  style={{ color: themeColors.textSecondary }}
-                >
-                  <pre className="whitespace-pre-wrap text-sm font-normal">
-                    {item.content[language as keyof typeof item.content]}
-                  </pre>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* App Version */}
-      <div className="text-center py-4">
-        <p style={{ color: themeColors.textSecondary }} className="text-sm">
-          {isRTL ? "الإصدار" : "Version"} 1.0.0
-        </p>
-        <p style={{ color: themeColors.textSecondary }} className="text-xs mt-1">
-          © 2026 Alphax. {isRTL ? "جميع الحقوق محفوظة" : "All rights reserved."}
-        </p>
       </div>
     </div>
   );

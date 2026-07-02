@@ -146,7 +146,11 @@ const AuthenticatedLayout = ({ children }: { children: React.ReactNode }) => {
     <div
       className="min-h-screen flex flex-col"
       dir={isRTL ? "rtl" : "ltr"}
-      style={{ background: themeColors.gradient || themeColors.background }}
+      style={{
+        background: theme === "light"
+          ? "linear-gradient(160deg, #3E6FB0, #1D4E86)"
+          : (themeColors.gradient || themeColors.background)
+      }}
     >
       <header className={`flex-shrink-0 fixed top-0 ${isRTL ? 'right-0' : 'left-0'} left-0 right-0 h-16 shadow-md flex items-center justify-between px-4 md:px-6 z-50`}
         style={{ background: themeColors.primary }}

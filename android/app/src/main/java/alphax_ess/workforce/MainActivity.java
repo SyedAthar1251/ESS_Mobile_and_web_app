@@ -1,4 +1,4 @@
-package com.ess.mobile;
+package alphax_ess.workforce;
 
 import com.getcapacitor.BridgeActivity;
 

@@ -6,7 +6,7 @@ interface RouteGuardProps {
 }
 
 const RouteGuard = ({ allowedType }: RouteGuardProps) => {
-  const { user, isAuthenticated, loading } = useAuth();
+  const { user, isCompanyAdmin, isAuthenticated, loading } = useAuth();
 
   if (loading) {
     return null;
@@ -18,11 +18,11 @@ const RouteGuard = ({ allowedType }: RouteGuardProps) => {
 
   const userType = user?.userType || "employee";
 
-  if (allowedType === "admin" && userType !== "admin") {
+  if (allowedType === "admin" && !isCompanyAdmin) {
     return <Navigate to="/dashboard" replace />;
   }
 
-  if (allowedType === "employee" && userType === "admin") {
+  if (allowedType === "employee" && isCompanyAdmin) {
     return <Navigate to="/admin" replace />;
   }
 

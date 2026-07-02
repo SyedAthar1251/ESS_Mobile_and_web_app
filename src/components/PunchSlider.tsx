@@ -207,13 +207,16 @@ export default function PunchSlider({
       <div
         ref={containerRef}
         className={`
-          relative h-14 rounded-2xl overflow-hidden
+          relative rounded-[30px] overflow-hidden
           ${colors.bg} border ${colors.border}
-          shadow-lg
           transition-all duration-300
           ${disabled || isLoading ? "opacity-60 cursor-not-allowed" : "cursor-pointer"}
           touch-none
         `}
+        style={{
+          boxShadow: "inset 3px 3px 6px rgba(10,30,60,0.15), inset -3px -3px 6px rgba(255,255,255,0.7)",
+          height: "56px",
+        }}
         onMouseDown={handleMouseDown}
         onTouchStart={handleTouchStart}
       >
@@ -244,28 +247,27 @@ export default function PunchSlider({
         <div
           className={`
             absolute top-1/2 -translate-y-1/2
-            h-11 rounded-2xl
             flex items-center justify-center
-            bg-white/90 backdrop-blur-md
-            border-2
-            shadow-lg
+            border-0
             transition-all duration-150 ease-out
             ${dragging ? "scale-[1.03]" : "scale-100"}
             ${isLoading ? "cursor-wait" : "cursor-grab active:cursor-grabbing"}
           `}
           style={{
             width: KNOB_WIDTH,
+            height: "44px",
             left: getKnobLeft(),
-            borderColor: `${colors.accent}66`,
+            borderRadius: "22px",
+            background: colors.accent,
             boxShadow: dragging
-              ? `0 10px 25px -5px ${colors.accent}40, 0 8px 10px -6px ${colors.accent}30`
-              : `0 4px 6px -1px ${colors.accent}20, 0 2px 4px -2px ${colors.accent}15`,
+              ? `0 10px 25px -5px rgba(0,0,0,0.3), 0 8px 10px -6px rgba(0,0,0,0.2), -3px -3px 8px rgba(255,255,255,0.3)`
+              : `5px 5px 10px rgba(0,0,0,0.2), -3px -3px 8px rgba(255,255,255,0.3)`,
           }}
         >
           <svg
-            className="w-5 h-5"
+            className="w-5 h-5 text-white"
             fill="none"
-            stroke={colors.accent}
+            stroke="currentColor"
             viewBox="0 0 24 24"
             strokeWidth={2.5}
           >

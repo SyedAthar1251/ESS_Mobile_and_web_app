@@ -57,7 +57,7 @@ const HRDashboard = () => {
       }
 
       if (loansRes.status === "fulfilled") {
-        const loans = loansRes.value.data || [];
+        const loans = loansRes.value.applications || [];
         setPendingLoanCount(loans.filter((l: HRLoanApplication) => l.status === "Open").length);
       }
     } catch (err: any) {

@@ -95,6 +95,37 @@ export interface TravelApprovalDetail {
   creation: string;
 }
 
+export interface EssAdminUserCheckResponse {
+  success: boolean;
+  message: string;
+  data: {
+    user: string;
+    full_name: string;
+    email: string;
+    role: string;
+    is_active: number;
+    allowed_companies: Array<{ company: string }>;
+  } | null;
+}
+
+export const checkESSAdminUser = async (userId: string): Promise<EssAdminUserCheckResponse> => {
+  const { companyUrl } = getUserCredentials();
+  const cleanUrl = companyUrl.replace(/\/$/, "");
+  const apiUrl = `${cleanUrl}/api/method/employee_self_service.employee_self_service.doctype.ess_admin_user.ess_admin_user.get_admin_user?user=${encodeURIComponent(userId)}`;
+
+  try {
+    const response = await api.get<{ message: EssAdminUserCheckResponse }>(apiUrl, {
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+    return response.data?.message || { success: false, message: "Invalid response", data: null };
+  } catch (error: any) {
+    console.error("[AdminService] Failed to check ESS admin user:", error);
+    return { success: false, message: error?.message || "Request failed", data: null };
+  }
+};
+
 export const checkIfUserIsEssAdmin = async (): Promise<EssAdminDetails> => {
   const { companyUrl, apiKey, apiSecret } = getUserCredentials();
   const cleanUrl = companyUrl.replace(/\/$/, "");
