@@ -217,7 +217,7 @@ const LoginPage = () => {
 
   const handleGuestLogin = (type: 'employee' | 'hr') => {
     const url = "https://testcomp.frappe.cloud/";
-    const id = type === 'employee' ? "Testemployee@gmail.com" : "Testhr@gmail.com";
+    const id = type === 'employee' ? "info@neotec.ai" : "hosting@neotec.ai";
     const pwd = "Test@1234";
     setCompanyUrl(url);
     setUserId(id);
@@ -696,13 +696,13 @@ const LoginPage = () => {
                       onClick={() => handleGuestLogin('employee')}
                       className="w-full py-2.5 rounded-xl border border-gray-300 text-gray-700 font-medium text-sm hover:bg-gray-50"
                     >
-                      Login as Test Employee
+                      Login as Neotec Employee
                     </button>
                     <button
                       onClick={() => handleGuestLogin('hr')}
                       className="w-full py-2.5 rounded-xl border border-gray-300 text-gray-700 font-medium text-sm hover:bg-gray-50"
                     >
-                      Login as Test HR Employee
+                      Login as Neotec HR 
                     </button>
                   </div>
                   <button

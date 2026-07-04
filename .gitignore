@@ -31,3 +31,40 @@ yarn-error.log*
 
 # Cache
 .cache/
+
+
+# ----------------------------
+# Android signing
+# ----------------------------
+android/key.properties
+android/*.jks
+android/*.keystore
+android/release-keystore.jks
+
+# ----------------------------
+# Temporary folders
+# ----------------------------
+apk_extract/
+
+# ----------------------------
+# Generated test images
+# ----------------------------
+test-adaptive.png
+test-badge.png
+test-fg-debug.png
+test-fg-exact.png
+test-roundrect.png
+
+# ----------------------------
+# Raw binaries
+# ----------------------------
+*.bin
+
+# ----------------------------
+# Optional marketing assets
+# ----------------------------
+play-store-assets/
+
+# Optional generated assets
+assets/
+scripts/
